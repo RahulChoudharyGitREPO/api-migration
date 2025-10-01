@@ -23,7 +23,8 @@ export class DynamicDbService implements OnModuleDestroy {
       }
 
       const baseDbUrl = mongoUri.substring(0, mongoUri.lastIndexOf("/") + 1);
-      const defaultDbName = process.env.NODE_ENV === "production" ? "prod" : "dev";
+      const defaultDbName =
+        process.env.NODE_ENV === "production" ? "prod" : "dev";
 
       console.log("Connecting to the base database...");
       this.baseDBConnection = createConnection(`${baseDbUrl}${defaultDbName}`, {
@@ -56,11 +57,19 @@ export class DynamicDbService implements OnModuleDestroy {
         basePath: String,
       });
 
-      const EntityModel = this.baseDBConnection!.model("Entity", entitySchema, "entities");
-      const entities = await EntityModel.find({}, { basePath: 1, _id: 0 }).lean();
+      const EntityModel = this.baseDBConnection!.model(
+        "Entity",
+        entitySchema,
+        "entities",
+      );
+      const entities = await EntityModel.find(
+        {},
+        { basePath: 1, _id: 0 },
+      ).lean();
 
       // Update cache with fresh data
-      const defaultDbName = process.env.NODE_ENV === "production" ? "prod" : "dev";
+      const defaultDbName =
+        process.env.NODE_ENV === "production" ? "prod" : "dev";
       this.entityCache = { [defaultDbName]: true };
 
       entities.forEach((entity: any) => {
@@ -93,9 +102,12 @@ export class DynamicDbService implements OnModuleDestroy {
       }
       const baseDbUrl = mongoUri.substring(0, mongoUri.lastIndexOf("/") + 1);
 
-      this.dbConnections[companyName] = createConnection(`${baseDbUrl}${companyName}`, {
-        bufferCommands: false,
-      });
+      this.dbConnections[companyName] = createConnection(
+        `${baseDbUrl}${companyName}`,
+        {
+          bufferCommands: false,
+        },
+      );
 
       await new Promise<void>((resolve, reject) => {
         this.dbConnections[companyName].once("connected", resolve);
@@ -106,6 +118,52 @@ export class DynamicDbService implements OnModuleDestroy {
     }
 
     return this.dbConnections[companyName];
+  }
+
+  // Alias method for compatibility with entity service
+  async getConnection(companyName: string): Promise<Connection> {
+    return this.getDatabaseConnection(companyName);
+  }
+
+  // Get connection by full database URL
+  async getConnectionByUrl(dbUrl: string): Promise<Connection> {
+    const dbName = dbUrl.split("/").pop() || "default";
+
+    if (!this.dbConnections[dbName]) {
+      this.dbConnections[dbName] = createConnection(dbUrl, {
+        bufferCommands: false,
+      });
+
+      await new Promise<void>((resolve, reject) => {
+        this.dbConnections[dbName].once("connected", resolve);
+        this.dbConnections[dbName].once("error", reject);
+      });
+
+      console.log(`Connected to: ${dbName} via URL`);
+    }
+
+    return this.dbConnections[dbName];
+  }
+
+  // Get database configuration URL
+  async getDbConfig(companyName: string): Promise<string> {
+    const mongoUri = this.configService.get<string>("MONGODB_URI");
+    if (!mongoUri) {
+      throw new Error("MONGODB_URI not configured");
+    }
+    const baseDbUrl = mongoUri.substring(0, mongoUri.lastIndexOf("/") + 1);
+    return `${baseDbUrl}${companyName}`;
+  }
+
+  // List databases for a company
+  async listDatabases(companyName: string): Promise<Array<{ name: string }>> {
+    const connection = await this.getDatabaseConnection(companyName);
+    if (!connection.db) {
+      throw new Error("Database connection not established");
+    }
+    const admin = connection.db.admin();
+    const result = await admin.listDatabases();
+    return result.databases;
   }
 
   isValidEntity(companyName: string): boolean {

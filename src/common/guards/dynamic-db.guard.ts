@@ -14,13 +14,18 @@ export class DynamicDbGuard implements CanActivate {
   constructor(private readonly dynamicDbService: DynamicDbService) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const request = context.switchToHttp().getRequest<Request & { dbConnection?: any }>();
+    const request = context
+      .switchToHttp()
+      .getRequest<Request & { dbConnection?: any }>();
 
     try {
       const companyName = getCompanyName(request);
 
       if (!companyName || companyName === "undefined") {
-        throw new HttpException("Entity not found", HttpStatus.INTERNAL_SERVER_ERROR);
+        throw new HttpException(
+          "Entity not found",
+          HttpStatus.INTERNAL_SERVER_ERROR,
+        );
       }
 
       // Check if entity is valid
@@ -29,7 +34,8 @@ export class DynamicDbGuard implements CanActivate {
       }
 
       // Get database connection for this company
-      const dbConnection = await this.dynamicDbService.getDatabaseConnection(companyName);
+      const dbConnection =
+        await this.dynamicDbService.getDatabaseConnection(companyName);
 
       // Attach to request for use in controllers/services
       request.dbConnection = dbConnection;
@@ -40,7 +46,10 @@ export class DynamicDbGuard implements CanActivate {
         throw error;
       }
       console.error("Error in DynamicDbGuard:", error);
-      throw new HttpException("Database connection error", HttpStatus.INTERNAL_SERVER_ERROR);
+      throw new HttpException(
+        "Database connection error",
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
   }
 }

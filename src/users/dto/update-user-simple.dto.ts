@@ -1,6 +1,6 @@
 import { IsMongoId, IsNotEmpty } from "class-validator";
 
-export class ResendPasswordDto {
+export class UpdateUserSimpleDto {
   @IsMongoId()
   @IsNotEmpty()
   id: string;

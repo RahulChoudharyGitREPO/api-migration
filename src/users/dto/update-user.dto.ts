@@ -7,7 +7,9 @@ import {
   IsOptional,
   IsString,
   IsMongoId,
+  ValidateIf,
 } from "class-validator";
+import { Transform } from "class-transformer";
 import { Types } from "mongoose";
 
 export class UpdateUserDto {
@@ -15,21 +17,25 @@ export class UpdateUserDto {
   @IsNotEmpty()
   id: string;
 
+  @Transform(({ value }) => value === "" ? undefined : value)
   @IsString()
-  @IsNotEmpty()
-  name: string;
+  @IsOptional()
+  name?: string;
 
+  @Transform(({ value }) => value === "" ? undefined : value)
   @IsEmail()
-  @IsNotEmpty()
-  email: string;
+  @IsOptional()
+  email?: string;
 
+  @Transform(({ value }) => value === "" ? undefined : value)
   @IsString()
-  @IsNotEmpty()
-  mobile: string;
+  @IsOptional()
+  mobile?: string;
 
+  @Transform(({ value }) => value === "" ? undefined : value)
   @IsEnum(["SuperAdmin", "ProjectAdmin", "FieldOfficer", "Staff", "Caregiver"])
-  @IsNotEmpty()
-  role: string;
+  @IsOptional()
+  role?: string;
 
   @IsBoolean()
   @IsOptional()

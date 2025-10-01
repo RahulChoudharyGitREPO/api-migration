@@ -50,7 +50,15 @@ export class Entity {
   @Prop({ default: false })
   deleted: boolean;
 
-  @Prop({ type: [{ name: String, isFree: { type: Boolean, default: true }, active: { type: Boolean, default: true } }] })
+  @Prop({
+    type: [
+      {
+        name: String,
+        isFree: { type: Boolean, default: true },
+        active: { type: Boolean, default: true },
+      },
+    ],
+  })
   features?: Array<{ name: string; isFree: boolean; active: boolean }>;
 }
 

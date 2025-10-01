@@ -29,10 +29,10 @@ export class User {
   @Prop({ default: "" })
   profilePic: string;
 
-  @Prop({ type: [{ type: Types.ObjectId, ref: "crops" }] })
+  @Prop({ type: [{ type: Types.ObjectId, ref: "Crop" }] })
   species: Types.ObjectId[];
 
-  @Prop({ type: [{ type: Types.ObjectId, ref: "companies" }] })
+  @Prop({ type: [{ type: Types.ObjectId, ref: "Company" }] })
   companies: Types.ObjectId[];
 
   @Prop({ default: "" })
@@ -53,7 +53,7 @@ export class User {
   @Prop({ type: [{ type: Types.ObjectId, ref: "Entity" }] })
   entities: Types.ObjectId[];
 
-  @Prop({ type: [{ type: Types.ObjectId, ref: "projects" }] })
+  @Prop({ type: [{ type: Types.ObjectId, ref: "Project" }] })
   projects: Types.ObjectId[];
 }
 

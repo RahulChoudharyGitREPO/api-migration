@@ -8,11 +8,13 @@ import { LoginDto } from "./dto/login.dto";
 import { SetPasswordDto } from "./dto/set-password.dto";
 import { ForgotPasswordDto } from "./dto/forgot-password.dto";
 import { RegisterUserDto } from "./dto/register-user.dto";
+import { EmailService } from "../email/email.service";
 
 @Injectable()
 export class AuthService {
   constructor(
     private jwtService: JwtService,
+    private emailService: EmailService,
   ) {}
 
   private getUserModel(dbConnection: Connection): Model<any> {
@@ -43,7 +45,11 @@ export class AuthService {
   /**
    * Login endpoint
    */
-  async login(loginDto: LoginDto, companyName: string, dbConnection: Connection) {
+  async login(
+    loginDto: LoginDto,
+    companyName: string,
+    dbConnection: Connection,
+  ) {
     try {
       // Double encryption as per original implementation
       const firstEncryption = this.encryptPassword(loginDto.Password);
@@ -85,7 +91,11 @@ export class AuthService {
   /**
    * Register user endpoint
    */
-  async register(registerUserDto: RegisterUserDto, companyName: string, dbConnection: Connection) {
+  async register(
+    registerUserDto: RegisterUserDto,
+    companyName: string,
+    dbConnection: Connection,
+  ) {
     try {
       const userModel = this.getUserModel(dbConnection);
 
@@ -156,10 +166,14 @@ export class AuthService {
           projects: registerUserDto.projects,
         };
 
-        user = await userModel.findByIdAndUpdate(registerUserDto._id, updateData, {
-          new: true,
-          runValidators: true,
-        });
+        user = await userModel.findByIdAndUpdate(
+          registerUserDto._id,
+          updateData,
+          {
+            new: true,
+            runValidators: true,
+          },
+        );
       } else {
         // Create new user with encrypted password
         const firstEncryption = this.encryptPassword(registerUserDto.Password);
@@ -231,10 +245,16 @@ export class AuthService {
       "http://localhost:3000";
     const url = `${baseUrl}/${companyName}/?userId=${resetPasswordGuid}&type=createpassword`;
 
-    // TODO: Implement email sending service
-    // await this.emailService.sendResetPasswordEmail(user, url);
+    // Send email with reset link
+    const emailSent = await this.emailService.sendResetPasswordEmail(user, url);
 
-    console.log("Reset password URL:", url);
+    if (!emailSent) {
+      console.log("Reset password URL (email failed):", url);
+      return {
+        success: false,
+        message: "Failed to send reset password email.",
+      };
+    }
 
     return { success: true, message: "Reset password link sent to email." };
   }
@@ -242,7 +262,11 @@ export class AuthService {
   /**
    * Set/Reset password
    */
-  async setPassword(setPasswordDto: SetPasswordDto, companyName: string, dbConnection: Connection) {
+  async setPassword(
+    setPasswordDto: SetPasswordDto,
+    companyName: string,
+    dbConnection: Connection,
+  ) {
     const userModel = this.getUserModel(dbConnection);
     const user = await userModel.findOne({
       passwordHash: setPasswordDto.userId,
@@ -268,7 +292,6 @@ export class AuthService {
       userData: updatedUser,
     };
   }
-
 
   /**
    * Verify JWT token

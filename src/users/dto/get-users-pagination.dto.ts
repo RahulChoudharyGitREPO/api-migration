@@ -1,4 +1,10 @@
-import { IsOptional, IsNumber, IsObject, IsString, IsBoolean } from "class-validator";
+import {
+  IsOptional,
+  IsNumber,
+  IsObject,
+  IsString,
+  IsBoolean,
+} from "class-validator";
 
 export class GetUsersPaginationDto {
   @IsNumber()

@@ -12,7 +12,10 @@ import { SetPasswordDto } from "./dto/set-password.dto";
 import { ForgotPasswordDto } from "./dto/forgot-password.dto";
 import { RegisterUserDto } from "./dto/register-user.dto";
 import { DynamicDbGuard } from "../common/guards/dynamic-db.guard";
-import { CompanyName, DatabaseConnection } from "../common/decorators/dynamic-db.decorator";
+import {
+  CompanyName,
+  DatabaseConnection,
+} from "../common/decorators/dynamic-db.decorator";
 import type { Request } from "express";
 import { Connection } from "mongoose";
 
@@ -27,7 +30,11 @@ export class AuthController {
     @CompanyName() companyName: string,
     @DatabaseConnection() dbConnection: Connection,
   ) {
-    return this.authService.register(registerUserDto, companyName, dbConnection);
+    return this.authService.register(
+      registerUserDto,
+      companyName,
+      dbConnection,
+    );
   }
 
   @Post("login")
@@ -45,7 +52,11 @@ export class AuthController {
     @CompanyName() companyName: string,
     @DatabaseConnection() dbConnection: Connection,
   ) {
-    return this.authService.forgotPassword(forgotPasswordDto, companyName, dbConnection);
+    return this.authService.forgotPassword(
+      forgotPasswordDto,
+      companyName,
+      dbConnection,
+    );
   }
 
   @Post("set-password")
@@ -54,7 +65,11 @@ export class AuthController {
     @CompanyName() companyName: string,
     @DatabaseConnection() dbConnection: Connection,
   ) {
-    return this.authService.setPassword(setPasswordDto, companyName, dbConnection);
+    return this.authService.setPassword(
+      setPasswordDto,
+      companyName,
+      dbConnection,
+    );
   }
 
   @Post("verify-user")
@@ -64,5 +79,4 @@ export class AuthController {
   ) {
     return this.authService.verifyUser(token, companyName);
   }
-
 }

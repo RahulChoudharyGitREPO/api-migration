@@ -12,6 +12,7 @@ import { LabMaster, LabMasterSchema } from "../labmaster/labmaster.schema";
 import { Area, AreaSchema } from "../areas/areas.schema";
 import { Crop, CropSchema } from "../crops/crops.schema";
 import { Project, ProjectSchema } from "../projects/projects.schema";
+import { Caregiver, CaregiverSchema } from "../caregivers/caregivers.schema";
 import { GetAllUsersDto } from "./dto/get-all-users.dto";
 import { UpdateUserDto } from "./dto/update-user.dto";
 import { DeleteUserDto } from "./dto/delete-user.dto";
@@ -32,34 +33,38 @@ export class UsersService {
     // Register all schemas that might be needed for population
     try {
       // Register Company schema with proper collection name
-      if (!dbConnection.models['Company']) {
-        dbConnection.model('Company', CompanySchema, 'companies');
+      if (!dbConnection.models["Company"]) {
+        dbConnection.model("Company", CompanySchema, "companies");
       }
 
       // Register other schemas
-      if (!dbConnection.models['Entity']) {
-        dbConnection.model('Entity', EntitySchema, 'entities');
+      if (!dbConnection.models["Entity"]) {
+        dbConnection.model("Entity", EntitySchema, "entities");
       }
 
-      if (!dbConnection.models['LabMaster']) {
-        dbConnection.model('LabMaster', LabMasterSchema, 'labmaster');
+      if (!dbConnection.models["LabMaster"]) {
+        dbConnection.model("LabMaster", LabMasterSchema, "labmaster");
       }
 
-      if (!dbConnection.models['Area']) {
-        dbConnection.model('Area', AreaSchema, 'areas');
+      if (!dbConnection.models["Area"]) {
+        dbConnection.model("Area", AreaSchema, "areas");
       }
 
-      if (!dbConnection.models['Crop']) {
-        dbConnection.model('Crop', CropSchema, 'crops');
+      if (!dbConnection.models["Crop"]) {
+        dbConnection.model("Crop", CropSchema, "crops");
       }
 
-      if (!dbConnection.models['Project']) {
-        dbConnection.model('Project', ProjectSchema, 'projects');
+      if (!dbConnection.models["Project"]) {
+        dbConnection.model("Project", ProjectSchema, "projects");
       }
 
-      console.log('Registered schemas:', Object.keys(dbConnection.models));
+      if (!dbConnection.models["Caregiver"]) {
+        dbConnection.model("Caregiver", CaregiverSchema, "caregivers");
+      }
+
+      console.log("Registered schemas:", Object.keys(dbConnection.models));
     } catch (error) {
-      console.error('Error registering schemas:', error);
+      console.error("Error registering schemas:", error);
     }
   }
 
@@ -72,7 +77,7 @@ export class UsersService {
   }
 
   private getLabMasterModel(dbConnection: Connection): Model<any> {
-    return dbConnection.model("LabMaster", LabMasterSchema, "labmasters");
+    return dbConnection.model("LabMaster", LabMasterSchema, "labmaster");
   }
 
   private getAreaModel(dbConnection: Connection): Model<any> {
@@ -85,6 +90,10 @@ export class UsersService {
 
   private getProjectModel(dbConnection: Connection): Model<any> {
     return dbConnection.model("Project", ProjectSchema, "projects");
+  }
+
+  private getCaregiverModel(dbConnection: Connection): Model<any> {
+    return dbConnection.model("Caregiver", CaregiverSchema, "caregivers");
   }
 
   /**
@@ -171,7 +180,12 @@ export class UsersService {
   /**
    * Get pagination format (copied from original handlers)
    */
-  private getPaginationFormat(totalCounts: number, totalPages: number, currentPage: number, limit: number) {
+  private getPaginationFormat(
+    totalCounts: number,
+    totalPages: number,
+    currentPage: number,
+    limit: number,
+  ) {
     return {
       total: totalCounts,
       pages: totalPages,
@@ -199,28 +213,46 @@ export class UsersService {
   /**
    * Check if caregiver exists (copied from original middleware logic)
    */
-  async checkCareGiverUserAvailable(role: string, email: string, mobile: string): Promise<boolean> {
+  async checkCareGiverUserAvailable(
+    role: string,
+    email: string,
+    mobile: string,
+    dbConnection: Connection,
+  ): Promise<boolean> {
     // If not a caregiver role, allow
     if (role !== "Caregiver") {
       return true;
     }
 
-    // TODO: Implement caregiver model check when available
-    // const caregiverData = await this.caregiverModel.findOne({
-    //   email,
-    //   phoneNumber: mobile,
-    // });
-    // return !!caregiverData;
+    try {
+      // Register schemas for caregiver validation
+      this.registerSchemas(dbConnection);
 
-    // For now, return true to maintain compatibility
-    console.log("Caregiver check bypassed - implement when caregiver model is available");
-    return true;
+      // Check if caregiver exists with given email and mobile
+      const caregiverModel = this.getCaregiverModel(dbConnection);
+      const caregiverData = await caregiverModel.findOne({
+        email: email,
+        phoneNumber: parseInt(mobile),
+      });
+
+      console.log(
+        `Caregiver validation: ${email}/${mobile} - Found: ${!!caregiverData}`,
+      );
+      return !!caregiverData;
+    } catch (error) {
+      console.error("Error checking caregiver availability:", error);
+      return false;
+    }
   }
 
   /**
    * Add user (copied from original service logic)
    */
-  async addUser(registerDto: RegisterUserDto, companyName: string, dbConnection: Connection): Promise<any> {
+  async addUser(
+    registerDto: RegisterUserDto,
+    companyName: string,
+    dbConnection: Connection,
+  ): Promise<any> {
     const email = registerDto.Email?.toLowerCase()?.trim();
     const mobile = registerDto.mobile;
 
@@ -247,7 +279,8 @@ export class UsersService {
     if (registerDto._id) {
       if (
         existingMobileUser &&
-        ((existingMobileUser._id as Types.ObjectId).toString() !== registerDto._id ||
+        ((existingMobileUser._id as Types.ObjectId).toString() !==
+          registerDto._id ||
           existingMobileUser.email !== email)
       ) {
         return {
@@ -272,7 +305,8 @@ export class UsersService {
     const isCaregiverValid = await this.checkCareGiverUserAvailable(
       registerDto.role,
       email,
-      mobile
+      mobile,
+      dbConnection,
     );
     if (!isCaregiverValid) {
       return {
@@ -303,7 +337,7 @@ export class UsersService {
           entities: registerDto.entities,
           projects: registerDto.projects,
         },
-        { new: true, runValidators: true }
+        { new: true, runValidators: true },
       );
     } else {
       // Create new user
@@ -326,7 +360,8 @@ export class UsersService {
       });
 
       // Send email with password creation link (copied from original)
-      const baseUrl = registerDto.hostURL || process.env.HOSTNAME || "http://localhost:3000";
+      const baseUrl =
+        registerDto.hostURL || process.env.HOSTNAME || "http://localhost:3000";
       const url = `${baseUrl}/${companyName}/?userId=${passwordHash}&type=createpassword`;
 
       const emailTemplate = this.createPasswordEmailTemplate(url);
@@ -353,10 +388,14 @@ export class UsersService {
   /**
    * Get all users (copied from original service logic)
    */
-  async getAllUsers(getAllUsersDto: GetAllUsersDto, companyName: string, dbConnection: Connection): Promise<any> {
+  async getAllUsers(
+    getAllUsersDto: GetAllUsersDto,
+    companyName: string,
+    dbConnection: Connection,
+  ): Promise<any> {
     const { showRemovedUser = false, Id } = getAllUsersDto;
 
-    let query: any = {};
+    const query: any = {};
 
     // If Id is provided
     if (Id && Id !== 0) {
@@ -385,7 +424,11 @@ export class UsersService {
   /**
    * Update user (copied from original repository logic)
    */
-  async updateUser(updateUserDto: UpdateUserDto, companyName: string, dbConnection: Connection): Promise<any> {
+  async updateUser(
+    updateUserDto: UpdateUserDto,
+    companyName: string,
+    dbConnection: Connection,
+  ): Promise<any> {
     const {
       id,
       name,
@@ -410,34 +453,34 @@ export class UsersService {
       throw new BadRequestException("Invalid user ID!");
     }
 
-    // Required parameters
-    if (!(name && email && mobile && role)) {
-      throw new BadRequestException("name, email, mobile & role are required!");
+    // Build update data object with only provided fields
+    const data: any = {};
+
+    if (name !== undefined) data.name = name;
+    if (email !== undefined) data.email = email?.toLowerCase()?.trim();
+    if (mobile !== undefined) data.mobile = mobile;
+    if (role !== undefined) data.role = role;
+    if (isActive !== undefined) data.isActive = isActive;
+    if (profilePic !== undefined) data.profilePic = profilePic;
+    if (crops !== undefined) data.crops = crops;
+    if (companies !== undefined) data.companies = companies;
+    if (addressLine1 !== undefined) data.addressLine1 = addressLine1;
+    if (addressLine2 !== undefined) data.addressLine2 = addressLine2;
+    if (labMaster !== undefined) data.labMaster = labMaster;
+    if (entities !== undefined) data.entities = entities;
+    if (area !== undefined) data.area = area;
+    if (species !== undefined) data.species = species;
+    if (projects !== undefined) data.projects = projects;
+
+    // Check if at least one field is being updated
+    if (Object.keys(data).length === 0) {
+      throw new BadRequestException("At least one field must be provided for update!");
     }
 
     // Required parameters for staff (copied from original logic)
     if (role === "Staff" && !(crops && companies)) {
-      throw new BadRequestException("crops & companies are required!");
+      throw new BadRequestException("crops & companies are required for Staff role!");
     }
-
-    // Format data (copied from original)
-    const data = {
-      name,
-      email: email?.toLowerCase()?.trim(),
-      mobile,
-      role,
-      isActive,
-      profilePic,
-      crops,
-      companies,
-      addressLine1,
-      addressLine2,
-      labMaster,
-      entities,
-      area,
-      species,
-      projects,
-    };
 
     // Update user
     const userModel = this.getUserModel(dbConnection);
@@ -458,7 +501,11 @@ export class UsersService {
   /**
    * Get users with pagination (copied from original repository logic)
    */
-  async getAllUsersWithPagination(paginationDto: GetUsersPaginationDto, companyName: string, dbConnection: Connection): Promise<any> {
+  async getAllUsersWithPagination(
+    paginationDto: GetUsersPaginationDto,
+    companyName: string,
+    dbConnection: Connection,
+  ): Promise<any> {
     // TODO: Implement getLoggedInUserId and getUserInformation when auth utilities are available
     // const logedinuserId = await this.getLoggedInUserId(req, res);
     // const userData = await this.getUserInformation(req, logedinuserId, res);
@@ -690,7 +737,11 @@ export class UsersService {
   /**
    * Get user details (copied from original repository logic)
    */
-  async getUserDetails(id: string, companyName: string, dbConnection: Connection): Promise<any> {
+  async getUserDetails(
+    id: string,
+    companyName: string,
+    dbConnection: Connection,
+  ): Promise<any> {
     // Validate id
     if (!Types.ObjectId.isValid(id)) {
       throw new BadRequestException("Invalid user ID!");
@@ -701,9 +752,9 @@ export class UsersService {
 
     // Find user based on id
     const userModel = this.getUserModel(dbConnection);
-    const user = await userModel.findById(id);
-    // TODO: Re-enable population once schema registration is fixed
-    // .populate(["companies", "labMaster", "entities", "area"]);
+    const user = await userModel
+      .findById(id)
+      .populate(["companies", "labMaster", "entities", "species", "projects"]);
 
     if (!user) {
       throw new NotFoundException("User not found!");
@@ -719,14 +770,18 @@ export class UsersService {
   /**
    * Delete user (soft delete) (copied from original repository logic)
    */
-  async deleteUser(deleteUserDto: DeleteUserDto, companyName: string, dbConnection: Connection): Promise<any> {
+  async deleteUser(
+    deleteUserDto: DeleteUserDto,
+    companyName: string,
+    dbConnection: Connection,
+  ): Promise<any> {
     const { Id, isRemove = true } = deleteUserDto;
 
     const userModel = this.getUserModel(dbConnection);
     const user = await userModel.findByIdAndUpdate(
       Id,
       { isRemove },
-      { new: true }
+      { new: true },
     );
 
     return {
@@ -739,7 +794,11 @@ export class UsersService {
   /**
    * Query users (copied from original repository logic)
    */
-  async queryUser(queryUserDto: QueryUserDto, companyName: string, dbConnection: Connection): Promise<any> {
+  async queryUser(
+    queryUserDto: QueryUserDto,
+    companyName: string,
+    dbConnection: Connection,
+  ): Promise<any> {
     const { dbQuery } = queryUserDto;
 
     // Query on User collection
@@ -759,7 +818,11 @@ export class UsersService {
   /**
    * Resend password creation email (copied from original repository logic)
    */
-  async resendPasswordCreationEmail(resendPasswordDto: ResendPasswordDto, companyName: string, dbConnection: Connection): Promise<any> {
+  async resendPasswordCreationEmail(
+    resendPasswordDto: ResendPasswordDto,
+    companyName: string,
+    dbConnection: Connection,
+  ): Promise<any> {
     const { id } = resendPasswordDto;
 
     // Validate id
