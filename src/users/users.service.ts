@@ -221,7 +221,7 @@ export class UsersService {
    * Add user (copied from original service logic)
    */
   async addUser(registerDto: RegisterUserDto, companyName: string, dbConnection: Connection): Promise<any> {
-    const email = registerDto.email?.toLowerCase()?.trim();
+    const email = registerDto.Email?.toLowerCase()?.trim();
     const mobile = registerDto.mobile;
 
     const userModel = this.getUserModel(dbConnection);

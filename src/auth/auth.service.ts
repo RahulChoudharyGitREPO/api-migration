@@ -46,12 +46,12 @@ export class AuthService {
   async login(loginDto: LoginDto, companyName: string, dbConnection: Connection) {
     try {
       // Double encryption as per original implementation
-      const firstEncryption = this.encryptPassword(loginDto.password);
+      const firstEncryption = this.encryptPassword(loginDto.Password);
       const secondEncryption = this.encryptPassword(firstEncryption);
 
       const userModel = this.getUserModel(dbConnection);
       const result = await userModel.findOne({
-        email: loginDto.email,
+        email: loginDto.Email,
         password: secondEncryption,
       });
 
@@ -89,7 +89,7 @@ export class AuthService {
     try {
       const userModel = this.getUserModel(dbConnection);
 
-      const email = registerUserDto.email?.toLowerCase()?.trim();
+      const email = registerUserDto.Email?.toLowerCase()?.trim();
       const mobile = registerUserDto.mobile;
 
       // Check if user already exists
@@ -142,7 +142,7 @@ export class AuthService {
         // Update existing user
         const updateData = {
           name: registerUserDto.name,
-          email: registerUserDto.email?.toLowerCase()?.trim(),
+          email: registerUserDto.Email?.toLowerCase()?.trim(),
           mobile: registerUserDto.mobile,
           role: registerUserDto.role,
           isActive: registerUserDto.isActive,
@@ -161,11 +161,15 @@ export class AuthService {
           runValidators: true,
         });
       } else {
-        // Create new user
+        // Create new user with encrypted password
+        const firstEncryption = this.encryptPassword(registerUserDto.Password);
+        const secondEncryption = this.encryptPassword(firstEncryption);
+
         const userData = {
           name: registerUserDto.name,
-          email: registerUserDto.email?.toLowerCase()?.trim(),
+          email: registerUserDto.Email?.toLowerCase()?.trim(),
           mobile: registerUserDto.mobile,
+          password: secondEncryption,
           role: registerUserDto.role,
           isActive: registerUserDto.isActive || true,
           profilePic: registerUserDto.profilePic,
@@ -176,20 +180,10 @@ export class AuthService {
           labMaster: registerUserDto.labMaster,
           entities: registerUserDto.entities,
           projects: registerUserDto.projects,
-          passwordHash: uuidv4(),
         };
 
         user = new userModel(userData);
         const savedUser = await user.save();
-
-        // Generate password creation URL
-        const baseUrl = registerUserDto.hostURL || process.env.HOSTNAME || "http://localhost:3000";
-        const url = `${baseUrl}/${companyName}/?userId=${savedUser.passwordHash}&type=createpassword`;
-
-        // TODO: Implement email sending service
-        // await this.emailService.sendPasswordCreationEmail(user, url);
-
-        console.log("Password creation URL:", url);
 
         user = await userModel.findById(savedUser._id);
       }
