@@ -76,6 +76,8 @@ export class DynamicDbService implements OnModuleDestroy {
         this.entityCache[entity.basePath.replace("/", "")] = true;
       });
 
+      // Manually add kristiyukta-dev for testing
+      this.entityCache["kristiyukta-dev"] = true;
       console.log("Entity cache updated:", Object.keys(this.entityCache));
     } catch (error) {
       console.error("Error refreshing entity cache:", error);

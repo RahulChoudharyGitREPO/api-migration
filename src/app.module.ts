@@ -6,6 +6,8 @@ import { AuthModule } from "./auth/auth.module";
 import { UsersModule } from "./users/users.module";
 import { DynamicDbModule } from "./database/dynamic-db.module";
 import { EntitiesModule } from "./entities/entities.module";
+import { UploadModule } from "./upload/upload.module";
+import { FormsModule } from "./forms/forms.module";
 
 @Module({
   imports: [
@@ -17,6 +19,8 @@ import { EntitiesModule } from "./entities/entities.module";
     AuthModule,
     UsersModule,
     EntitiesModule,
+    UploadModule,
+    FormsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

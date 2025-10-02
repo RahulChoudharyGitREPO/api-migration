@@ -39,6 +39,8 @@ export class AuthService {
     };
 
     const secret = process.env.JWT_SECRET + companyName;
+    console.log('Auth Service - Generate Token - Company Name:', companyName);
+    console.log('Auth Service - Generate Token - Secret (partial):', secret.substring(0, 10) + '...');
     return this.jwtService.sign(payload, { secret });
   }
 

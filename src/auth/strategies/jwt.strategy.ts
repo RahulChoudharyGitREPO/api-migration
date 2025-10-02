@@ -10,7 +10,10 @@ import { Request } from "express";
 export class JwtStrategy extends PassportStrategy(Strategy) {
   constructor(private dynamicDbService: DynamicDbService) {
     super({
-      jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+      jwtFromRequest: ExtractJwt.fromExtractors([
+        ExtractJwt.fromHeader('authorization'),
+        ExtractJwt.fromHeader('x-access-token'),
+      ]),
       ignoreExpiration: false,
       secretOrKeyProvider: (
         request: Request,
@@ -20,6 +23,9 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         // Extract company name from URL (multi-tenant approach)
         const companyName = this.getCompanyNameFromRequest(request);
         const secret = process.env.JWT_SECRET + companyName;
+        console.log('JWT Strategy - URL:', request.originalUrl || request.url);
+        console.log('JWT Strategy - Company Name:', companyName);
+        console.log('JWT Strategy - Secret (partial):', secret.substring(0, 10) + '...');
         done(null, secret);
       },
     });
@@ -47,6 +53,6 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     if (!payload.user_id || !payload.user_name) {
       throw new UnauthorizedException("Invalid token payload");
     }
-    return { userId: payload.user_id, email: payload.user_name };
+    return { user_id: payload.user_id, user_name: payload.user_name };
   }
 }
