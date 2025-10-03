@@ -20,15 +20,15 @@ export class RegisterUserDto {
 
   @IsEmail()
   @IsNotEmpty()
-  Email: string;
+  email: string;
 
   @IsString()
   @IsNotEmpty()
   mobile: string;
 
   @IsString()
-  @IsNotEmpty()
-  Password: string;
+  @IsOptional()
+  password?: string;
 
   @IsEnum(["SuperAdmin", "ProjectAdmin", "FieldOfficer"])
   @IsNotEmpty()

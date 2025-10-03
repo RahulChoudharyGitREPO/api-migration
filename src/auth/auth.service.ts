@@ -18,7 +18,7 @@ export class AuthService {
   ) {}
 
   private getUserModel(dbConnection: Connection): Model<any> {
-    return dbConnection.model("User", UserSchema, "users");
+    return dbConnection.model("users", UserSchema, "users");
   }
 
   /**
@@ -101,7 +101,7 @@ export class AuthService {
     try {
       const userModel = this.getUserModel(dbConnection);
 
-      const email = registerUserDto.Email?.toLowerCase()?.trim();
+      const email = registerUserDto.email?.toLowerCase()?.trim();
       const mobile = registerUserDto.mobile;
 
       // Check if user already exists
@@ -154,7 +154,7 @@ export class AuthService {
         // Update existing user
         const updateData = {
           name: registerUserDto.name,
-          email: registerUserDto.Email?.toLowerCase()?.trim(),
+          email: registerUserDto.email?.toLowerCase()?.trim(),
           mobile: registerUserDto.mobile,
           role: registerUserDto.role,
           isActive: registerUserDto.isActive,
@@ -177,15 +177,11 @@ export class AuthService {
           },
         );
       } else {
-        // Create new user with encrypted password
-        const firstEncryption = this.encryptPassword(registerUserDto.Password);
-        const secondEncryption = this.encryptPassword(firstEncryption);
-
-        const userData = {
+        // Create new user with encrypted password (if provided)
+        let userData: any = {
           name: registerUserDto.name,
-          email: registerUserDto.Email?.toLowerCase()?.trim(),
+          email: registerUserDto.email?.toLowerCase()?.trim(),
           mobile: registerUserDto.mobile,
-          password: secondEncryption,
           role: registerUserDto.role,
           isActive: registerUserDto.isActive || true,
           profilePic: registerUserDto.profilePic,
@@ -197,6 +193,13 @@ export class AuthService {
           entities: registerUserDto.entities,
           projects: registerUserDto.projects,
         };
+
+        // Add password only if provided (for register), otherwise skip (for add-user)
+        if (registerUserDto.password) {
+          const firstEncryption = this.encryptPassword(registerUserDto.password);
+          const secondEncryption = this.encryptPassword(firstEncryption);
+          userData.password = secondEncryption;
+        }
 
         user = new userModel(userData);
         const savedUser = await user.save();

@@ -8,6 +8,7 @@ import { ConfigService } from '@nestjs/config';
 import OpenAI from 'openai';
 import * as ExcelJS from 'exceljs';
 import { Response } from 'express';
+import { defaults, normalizeSchema } from './utils/elements';
 
 @Injectable()
 export class FormsService {
@@ -45,46 +46,73 @@ export class FormsService {
   async saveForm(dbConnection: Connection, createFormDto: CreateFormDto, userId: string): Promise<Form> {
     const FormModel = this.getFormModel(dbConnection);
 
-    // Check if slug already exists
-    const existingForm = await FormModel.findOne({ slug: createFormDto.slug });
-    if (existingForm) {
-      throw new ConflictException('Form with this slug already exists');
-    }
+    // Use findOneAndUpdate with upsert to match Express behavior
+    // This will create a new form if slug doesn't exist, or update existing one
+    const updatedForm = await FormModel.findOneAndUpdate(
+      { slug: createFormDto.slug },
+      {
+        ...createFormDto,
+        createdBy: userId,
+      },
+      {
+        upsert: true,
+        new: true,
+        runValidators: true,
+        setDefaultsOnInsert: true
+      }
+    );
 
-    const form = new FormModel({
-      ...createFormDto,
-      createdBy: userId,
-    });
-
-    return await form.save();
+    return updatedForm;
   }
 
   async generateForm(dbConnection: Connection, generateFormDto: GenerateFormDto): Promise<any> {
     try {
-      const prompt = `Create a form schema based on this description: "${generateFormDto.prompt}".
-      Return a JSON array of form fields with properties like:
-      {
-        "key": "field_name",
-        "type": "text|number|email|select|radio|checkbox|textarea",
-        "label": "Field Label",
-        "required": true/false,
-        "options": [] // for select/radio fields
-      }`;
+      const { prompt } = generateFormDto;
 
-      const completion = await this.openai.chat.completions.create({
-        model: 'gpt-3.5-turbo',
-        messages: [{ role: 'user', content: prompt }],
-        max_tokens: 1000,
+      if (!prompt) {
+        throw new Error('Missing prompt');
+      }
+
+      const response = await this.openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages: [
+          {
+            role: 'system',
+            content: `
+You are a form generator.
+Generate a JSON array of form elements based on the user's requirements. Each element should be an object with a "type" and "properties". Use the following default properties for each type:
+${JSON.stringify(defaults, null, 2)}
+
+Rules:
+- The response MUST be a JSON array: [ { ... }, { ... } ].
+- You are free to change text, lable, name, required and defaultValue properties as per the user's requirement.
+        `,
+          },
+          {
+            role: 'user',
+            content: `Generate a form with the following requirement: ${prompt}`,
+          },
+        ],
+        temperature: 0.2,
       });
 
-      const generatedSchema = JSON.parse(completion.choices[0].message.content || '[]');
+      const formSchema = response.choices[0]?.message?.content;
+      if (!formSchema) {
+        throw new Error('No schema generated');
+      }
 
-      return {
-        title: generateFormDto.title || 'Generated Form',
-        schema: generatedSchema,
-        slug: this.generateSlug(generateFormDto.title || 'generated-form'),
-      };
+      // Try parsing JSON (ChatGPT might wrap it in markdown)
+      const parsedSchema = JSON.parse(
+        formSchema.replace(/```json|```/g, '').trim()
+      );
+
+      const cleanSchema = normalizeSchema(parsedSchema);
+
+      return { cleanSchema, parsedSchema };
     } catch (error) {
+      if (error.message.includes('JSON')) {
+        throw new Error(`Invalid JSON schema generated: ${error.message}`);
+      }
       throw new Error(`Failed to generate form: ${error.message}`);
     }
   }

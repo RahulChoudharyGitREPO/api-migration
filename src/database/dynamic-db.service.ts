@@ -76,8 +76,10 @@ export class DynamicDbService implements OnModuleDestroy {
         this.entityCache[entity.basePath.replace("/", "")] = true;
       });
 
-      // Manually add kristiyukta-dev for testing
-      this.entityCache["kristiyukta-dev"] = true;
+      // Manually add entities for testing - match Express behavior
+      this.entityCache["krisiyukta-dev"] = true;
+      this.entityCache["krisiyukta"] = true; // Also allow direct access
+
       console.log("Entity cache updated:", Object.keys(this.entityCache));
     } catch (error) {
       console.error("Error refreshing entity cache:", error);
@@ -91,35 +93,42 @@ export class DynamicDbService implements OnModuleDestroy {
       await this.initializeBaseConnection();
     }
 
+    // Apply company name mapping like Express does
+    let actualDbName = companyName;
+    if (companyName === "krisiyukta") {
+      const prod = process.env.NODE_ENV === "production";
+      actualDbName = prod ? "prod" : "dev";
+    }
+
     // Check if the entity exists in the cache
     if (!this.entityCache[companyName]) {
       throw new Error("Entity not found");
     }
 
     // Use cached DB connection or create a new one
-    if (!this.dbConnections[companyName]) {
+    if (!this.dbConnections[actualDbName]) {
       const mongoUri = this.configService.get<string>("MONGODB_URI");
       if (!mongoUri) {
         throw new Error("MONGODB_URI not configured");
       }
       const baseDbUrl = mongoUri.substring(0, mongoUri.lastIndexOf("/") + 1);
 
-      this.dbConnections[companyName] = createConnection(
-        `${baseDbUrl}${companyName}`,
+      this.dbConnections[actualDbName] = createConnection(
+        `${baseDbUrl}${actualDbName}`,
         {
           bufferCommands: false,
         },
       );
 
       await new Promise<void>((resolve, reject) => {
-        this.dbConnections[companyName].once("connected", resolve);
-        this.dbConnections[companyName].once("error", reject);
+        this.dbConnections[actualDbName].once("connected", resolve);
+        this.dbConnections[actualDbName].once("error", reject);
       });
 
-      console.log(`Connected to: ${companyName}`);
+      console.log(`Connected to: ${actualDbName}`);
     }
 
-    return this.dbConnections[companyName];
+    return this.dbConnections[actualDbName];
   }
 
   // Alias method for compatibility with entity service

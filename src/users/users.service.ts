@@ -26,7 +26,7 @@ export class UsersService {
   constructor() {}
 
   private getUserModel(dbConnection: Connection): Model<any> {
-    return dbConnection.model("User", UserSchema, "users");
+    return dbConnection.model("users", UserSchema, "users");
   }
 
   private registerSchemas(dbConnection: Connection): void {
@@ -253,7 +253,7 @@ export class UsersService {
     companyName: string,
     dbConnection: Connection,
   ): Promise<any> {
-    const email = registerDto.Email?.toLowerCase()?.trim();
+    const email = registerDto.email?.toLowerCase()?.trim();
     const mobile = registerDto.mobile;
 
     const userModel = this.getUserModel(dbConnection);

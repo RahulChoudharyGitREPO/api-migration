@@ -8,6 +8,7 @@ import { DynamicDbModule } from "./database/dynamic-db.module";
 import { EntitiesModule } from "./entities/entities.module";
 import { UploadModule } from "./upload/upload.module";
 import { FormsModule } from "./forms/forms.module";
+import { ProjectsModule } from "./projects/projects.module";
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { FormsModule } from "./forms/forms.module";
     EntitiesModule,
     UploadModule,
     FormsModule,
+    ProjectsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

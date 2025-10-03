@@ -72,18 +72,15 @@ export class FormsController {
     @Body() generateFormDto: GenerateFormDto,
   ) {
     try {
-      const generatedForm = await this.formsService.generateForm(dbConnection, generateFormDto);
+      const result = await this.formsService.generateForm(dbConnection, generateFormDto);
 
-      return {
-        success: true,
-        message: 'Form generated successfully',
-        data: generatedForm,
-      };
+      // Return exactly like Express: { cleanSchema, parsedSchema }
+      return result;
     } catch (error) {
       throw new HttpException(
         {
           success: false,
-          message: error.message || 'Failed to generate form',
+          error: error.message || 'Failed to generate form',
         },
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
