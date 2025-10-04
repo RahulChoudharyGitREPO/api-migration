@@ -39,28 +39,32 @@ export class UpdateFormEntryDto {
 
 export class GetEntriesDto {
   @IsString()
-  @IsOptional()
-  page?: string;
+  slug: string; // Required field from request body
 
-  @IsString()
   @IsOptional()
-  limit?: string;
+  page?: any; // Accept both string and number
+
+  @IsOptional()
+  limit?: any; // Accept both string and number
 
   @IsString()
   @IsOptional()
   search?: string;
 
-  @IsObject()
   @IsOptional()
   filters?: any;
 
   @IsString()
   @IsOptional()
-  sortBy?: string;
+  sortField?: string;
 
   @IsString()
   @IsOptional()
   sortOrder?: 'asc' | 'desc';
+
+  @IsBoolean()
+  @IsOptional()
+  isDraft?: boolean;
 
   @IsString()
   @IsOptional()
@@ -81,19 +85,16 @@ export class UpdateWorkflowStepDto {
 }
 
 export class GetEntriesOldDto {
-  @IsString()
   @IsOptional()
-  page?: string;
+  page?: any; // Accept both string and number
 
-  @IsString()
   @IsOptional()
-  limit?: string;
+  limit?: any; // Accept both string and number
 
   @IsString()
   @IsOptional()
   search?: string;
 
-  @IsObject()
   @IsOptional()
   filters?: any;
 

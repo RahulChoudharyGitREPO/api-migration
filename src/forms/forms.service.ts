@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
-import { Connection, Model } from 'mongoose';
+import { Connection, Model, Types } from 'mongoose';
 import { Form } from './schemas/form.schema';
 import { CreateFormDto, UpdateFormDto, GenerateFormDto } from './dto/form.dto';
 import { GetEntriesDto, UpdateWorkflowStepDto } from './dto/form-submission.dto';
@@ -43,26 +43,54 @@ export class FormsService {
     }
   }
 
-  async saveForm(dbConnection: Connection, createFormDto: CreateFormDto, userId: string): Promise<Form> {
-    const FormModel = this.getFormModel(dbConnection);
+  async saveForm(dbConnection: Connection, createFormDto: CreateFormDto, userId: string): Promise<any> {
+    // Use native MongoDB collection to bypass Mongoose property mapping issues
+    const collection = dbConnection.collection('forms');
 
-    // Use findOneAndUpdate with upsert to match Express behavior
-    // This will create a new form if slug doesn't exist, or update existing one
-    const updatedForm = await FormModel.findOneAndUpdate(
+    // Build update object with exact database field names
+    const updateData: any = {
+      slug: createFormDto.slug,
+      title: createFormDto.title,
+      schema: createFormDto.schema,  // Direct DB field name
+      columnsPerPage: createFormDto.columnsPerPage,
+      status: createFormDto.status || 'active',
+      favorite: createFormDto.favorite || [],
+      sharedWith: createFormDto.sharedWith || [],
+      layoutSelections: createFormDto.layoutSelections || [],
+      published: createFormDto.published !== undefined ? createFormDto.published : false,
+      isDraft: createFormDto.isDraft !== undefined ? createFormDto.isDraft : false,
+      workflows: createFormDto.workflows || [],
+      projects: createFormDto.projects || [],
+      _properties: createFormDto._properties || {},
+      createdBy: userId,
+      updatedAt: new Date(),
+    };
+
+    // Remove undefined fields
+    Object.keys(updateData).forEach(key =>
+      updateData[key] === undefined && delete updateData[key]
+    );
+
+    // Use native findOneAndUpdate to ensure schema field is saved correctly
+    const result = await collection.findOneAndUpdate(
       { slug: createFormDto.slug },
       {
-        ...createFormDto,
-        createdBy: userId,
+        $set: updateData,
+        $setOnInsert: { createdAt: new Date() },
+        $unset: { formSchema: "" }  // Remove old formSchema field if it exists
       },
       {
         upsert: true,
-        new: true,
-        runValidators: true,
-        setDefaultsOnInsert: true
+        returnDocument: 'after'
       }
     );
 
-    return updatedForm;
+    // Clean up response - remove formSchema if it exists
+    if (result && result.formSchema !== undefined) {
+      delete result.formSchema;
+    }
+
+    return result;
   }
 
   async generateForm(dbConnection: Connection, generateFormDto: GenerateFormDto): Promise<any> {
@@ -117,20 +145,23 @@ Rules:
     }
   }
 
-  async loadForm(dbConnection: Connection, slug: string): Promise<Form> {
-    const FormModel = this.getFormModel(dbConnection);
-    const form = await FormModel.findOne({ slug }).populate('sharedWith.user projects');
+  async loadForm(dbConnection: Connection, slug: string): Promise<any> {
+    // Use native MongoDB collection to bypass Mongoose property mapping
+    const collection = dbConnection.collection('forms');
+
+    // Find form by slug
+    const form = await collection.findOne({ slug });
 
     if (!form) {
       throw new NotFoundException('Form not found');
     }
 
-    // Transform formSchema to schema for Express compatibility
-    const formObj = form.toObject();
-    return {
-      ...formObj,
-      schema: formObj.formSchema
-    } as any;
+    // Clean up response - remove formSchema if it exists
+    if (form.formSchema !== undefined) {
+      delete form.formSchema;
+    }
+
+    return form;
   }
 
   async getFormsList(dbConnection: Connection, userId: string): Promise<Form[]> {
@@ -177,20 +208,36 @@ Rules:
       projectId
     } = options;
 
+    console.log('Forms List Debug - User ID:', userId);
+    console.log('Forms List Debug - Options:', options);
+
     // Get user info
     const userModel = this.getUserModel(dbConnection);
     const user = await userModel.findById(userId);
     const userRole = user?.role;
     const isSuperAdmin = userRole === 'SuperAdmin';
 
-    // Build basic query for forms
+    console.log('Forms List Debug - User Role:', userRole, 'Is SuperAdmin:', isSuperAdmin);
+
+    // Convert userId to ObjectId like Express does
+    const userObjectId = new Types.ObjectId(userId);
+
+    // Build basic query for forms - Match Express logic exactly
     const query: any = {};
 
-    // Permissions: only show forms shared with or created by user (if not superadmin and no filters)
-    if (!isSuperAdmin && !favoriteOnly && !sharedOnly && !filledOnly && !draftsOnly && !status) {
+    // Match Express permission logic exactly
+    if (favoriteOnly) {
+      // Express: query.favorite = { $in: [userObjectId] };
+      query.favorite = { $in: [userObjectId] };
+    } else if (sharedOnly) {
+      // Express: query.sharedWith = { $in: [userObjectId] };
+      // But sharedWith has nested structure: [{user: ObjectId, canEdit: bool, canCreate: bool}]
+      query['sharedWith.user'] = { $in: [userObjectId] };
+    } else if (!isSuperAdmin && !filledOnly && !draftsOnly && !status) {
+      // Express: apply normal permissions only when no specific filters
       query.$or = [
-        { 'sharedWith.user': userId },
-        { createdBy: userId }
+        { createdBy: userObjectId },
+        { 'sharedWith.user': userObjectId }
       ];
     }
 
@@ -198,26 +245,31 @@ Rules:
       query.projects = projectId;
     }
 
-    if (status) {
+    if (status && status !== 'all') {
       query.status = status;
     }
 
-    if (favoriteOnly) {
-      query.favorite = { $in: [userId] };
-    }
-
-    if (sharedOnly) {
-      query.sharedWith = {
-        $elemMatch: { user: userId }
-      };
-    }
-
     if (search) {
-      query.$or = [
-        { title: { $regex: search, $options: 'i' } },
-        { slug: { $regex: search, $options: 'i' } }
-      ];
+      const searchQuery = {
+        $or: [
+          { title: { $regex: search, $options: 'i' } },
+          { slug: { $regex: search, $options: 'i' } }
+        ]
+      };
+
+      if (query.$or) {
+        // Combine with existing $or
+        query.$and = [
+          { $or: query.$or },
+          searchQuery
+        ];
+        delete query.$or;
+      } else {
+        Object.assign(query, searchQuery);
+      }
     }
+
+    console.log('Forms List Debug - Final Query:', JSON.stringify(query, null, 2));
 
     // Get forms using aggregation to populate projects
     const forms = await dbConnection.collection('forms').aggregate([
@@ -233,20 +285,36 @@ Rules:
       { $sort: { createdAt: -1 } }
     ]).toArray();
 
+    console.log('Forms List Debug - Found forms count:', forms.length);
+    if (forms.length > 0) {
+      console.log('Forms List Debug - First form sample:', {
+        _id: forms[0]._id,
+        title: forms[0].title,
+        slug: forms[0].slug,
+        createdBy: forms[0].createdBy,
+        status: forms[0].status
+      });
+    }
+
     // Process forms and add computed fields
     const processedForms = await Promise.all(forms.map(async (form) => {
       // Calculate page count
       const pageCount = form.formSchema ? form.formSchema.length : 1;
 
-      // Check if user has favorited this form
-      const isFavorite = form.favorite && form.favorite.some((fav: any) => fav.toString() === userId);
+      // Check if user has favorited this form - match Express logic
+      const isFavorite = form.favorite && form.favorite.some((fav: any) => {
+        const favId = fav._id || fav;
+        return favId.toString() === userId;
+      });
       const favoriteCount = form.favorite ? form.favorite.length : 0;
       const favoriteIds = form.favorite || [];
 
-      // Check if shared with user
+      // Check if shared with user - handle nested structure
       const isSharedWithMe = form.sharedWith && form.sharedWith.some((item: any) => {
         if (typeof item === 'object' && item.user) {
-          return item.user.toString() === userId;
+          // Handle populated user object or ObjectId
+          const itemUserId = item.user._id || item.user;
+          return itemUserId.toString() === userId;
         }
         return item.toString() === userId;
       });
@@ -279,7 +347,7 @@ Rules:
         _id: form._id,
         slug: form.slug,
         title: form.title,
-        schema: form.formSchema, // Transform formSchema to schema for Express compatibility
+        schema: form.formSchema,
         status: form.status,
         pageCount,
         ...projectInfo,
@@ -410,8 +478,8 @@ Rules:
     slug: string,
     getEntriesDto: GetEntriesDto,
     userId: string,
-  ): Promise<{ entries: any[]; total: number; page: number; totalPages: number }> {
-    const { page = '1', limit = '10', search, filters, sortBy, sortOrder, projectName } = getEntriesDto;
+  ): Promise<any> {
+    const { page = '1', limit = '10', search, filters, sortField, sortOrder, isDraft, projectName } = getEntriesDto;
 
     const pageNum = parseInt(page) || 1;
     const limitNum = parseInt(limit) || 10;
@@ -421,10 +489,37 @@ Rules:
       ? `${slug}_${this.sanitize(projectName)}`
       : slug;
 
+    // Get form definition to build schema
+    const formsCollection = dbConnection.collection('forms');
+    const form = await formsCollection.findOne({ slug });
+
+    // Build schema from form definition
+    const schema: any[] = [];
+    if (form && form.schema && Array.isArray(form.schema)) {
+      form.schema.forEach((page: any) => {
+        if (page.elements && Array.isArray(page.elements)) {
+          page.elements.forEach((element: any) => {
+            if (element.properties && element.properties.label) {
+              schema.push({
+                label: element.properties.label,
+                type: element.type,
+                ...element.properties
+              });
+            }
+          });
+        }
+      });
+    }
+
     const collection = dbConnection.collection(slugName);
 
     // Build query
     let query: any = {};
+
+    // Only add isDraft filter if explicitly provided
+    if (isDraft !== undefined && isDraft !== null) {
+      query.isDraft = isDraft;
+    }
 
     if (search) {
       // Simple text search across all fields
@@ -440,20 +535,25 @@ Rules:
 
     // Build sort options
     let sortOptions: any = { createdAt: -1 }; // Default sort
-    if (sortBy) {
-      sortOptions = { [sortBy]: sortOrder === 'asc' ? 1 : -1 };
+    if (sortField) {
+      sortOptions = { [sortField]: sortOrder === 'asc' ? 1 : -1 };
     }
 
-    const [entries, total] = await Promise.all([
+    const [data, total] = await Promise.all([
       collection.find(query).sort(sortOptions).skip(skip).limit(limitNum).toArray(),
       collection.countDocuments(query),
     ]);
 
+    // Match Express response format
     return {
-      entries,
-      total,
-      page: pageNum,
-      totalPages: Math.ceil(total / limitNum),
+      data,
+      schema,
+      pagination: {
+        total,
+        page: pageNum,
+        limit: limitNum,
+      },
+      projectStatus: null, // TODO: Get project status if needed
     };
   }
 
@@ -794,7 +894,7 @@ Rules:
     const worksheet = workbook.addWorksheet('Form Data');
 
     // Get field headers from form schema
-    const allFields = (form.formSchema || form.formSchema || []).flatMap((page: any) => page.elements || []);
+    const allFields = (form.formSchema || []).flatMap((page: any) => page.elements || []);
     const headers = ['ID', 'Created At', 'Updated At', 'Created By', 'Is Draft'];
 
     // Add form fields to headers
@@ -897,7 +997,7 @@ Rules:
     });
 
     // Get form fields mapping
-    const allFields = (form.formSchema || form.formSchema || []).flatMap((page: any) => page.elements || []);
+    const allFields = (form.formSchema || []).flatMap((page: any) => page.elements || []);
     const fieldMapping: { [key: string]: string } = {};
 
     allFields.forEach(field => {

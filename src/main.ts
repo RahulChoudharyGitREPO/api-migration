@@ -19,10 +19,10 @@ async function bootstrap() {
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: false, // Allow extra fields (Express compatibility)
-      transform: true,
+      transform: false, // Disable transformation to preserve nested objects
       forbidNonWhitelisted: false, // Don't reject extra fields
       transformOptions: {
-        enableImplicitConversion: true,
+        enableImplicitConversion: false,
       },
     }),
   );

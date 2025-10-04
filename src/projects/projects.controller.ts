@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Body, Param, UseGuards, Req } from '@nestjs/common';
+import { Controller, Get, Post, Put, Body, Param, Query, UseGuards, Req } from '@nestjs/common';
 import { ProjectsService } from './projects.service';
 import { CreateProjectDto } from './dto/create-project.dto';
 import { UpdateProjectDto } from './dto/update-project.dto';
@@ -67,6 +67,34 @@ export class ProjectsController {
     @DatabaseConnection() dbConnection: Connection,
     @Body() projectListDto: ProjectListDto
   ) {
+    const result = await this.projectsService.list(dbConnection, projectListDto);
+
+    return {
+      success: true,
+      message: result.pagination
+        ? 'Projects list fetched successfully'
+        : 'All projects fetched successfully',
+      ...result,
+    };
+  }
+
+  @Get('view')
+  async view(
+    @DatabaseConnection() dbConnection: Connection,
+    @Query('slug') slug?: string,
+    @Query('type') type?: string,
+    @Query('project') project?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('all') all?: string,
+  ) {
+    // Convert query parameters to match ProjectListDto format
+    const projectListDto: ProjectListDto = {
+      page: page ? parseInt(page) : 1,
+      limit: limit ? parseInt(limit) : 10,
+      all: all === 'true' || type === 'all',
+    };
+
     const result = await this.projectsService.list(dbConnection, projectListDto);
 
     return {

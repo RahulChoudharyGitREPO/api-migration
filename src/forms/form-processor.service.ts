@@ -170,11 +170,11 @@ export class FormProcessorService {
       : slug;
 
     // 2. Build dynamic schema + model
-    const schema = this.createDynamicSchema(meta.formSchema || meta.formSchema || [], dbConnection, slug);
+    const schema = this.createDynamicSchema(meta.formSchema || [], dbConnection, slug);
     const DynamicModel = dbConnection.model(slugName, schema, slugName);
 
     // 3. Collect all fields
-    const allFields = (meta.formSchema || meta.formSchema || []).flatMap((page: any) => page.elements || []);
+    const allFields = (meta.formSchema || []).flatMap((page: any) => page.elements || []);
 
     // 4. Clone input data
     let doc = { ...rawData };

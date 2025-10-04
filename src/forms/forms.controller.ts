@@ -95,25 +95,25 @@ export class FormsController {
     try {
       if (!slug) {
         throw new HttpException(
-          { success: false, message: 'Slug parameter is required' },
+          { error: 'Missing slug' },
           HttpStatus.BAD_REQUEST,
         );
       }
 
       const form = await this.formsService.loadForm(dbConnection, slug);
 
-      return {
-        success: true,
-        message: 'Form loaded successfully',
-        data: form,
-      };
+      // Return raw form document directly like Express
+      return form;
     } catch (error) {
+      if (error.status === HttpStatus.NOT_FOUND) {
+        throw new HttpException(
+          { error: 'Form not found' },
+          HttpStatus.NOT_FOUND,
+        );
+      }
       throw new HttpException(
-        {
-          success: false,
-          message: error.message || 'Failed to load form',
-        },
-        error.status || HttpStatus.INTERNAL_SERVER_ERROR,
+        { error: 'Internal Server Error' },
+        HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
   }
@@ -404,12 +404,11 @@ export class FormsController {
   @Post('entries')
   async getFormEntries(
     @DatabaseConnection() dbConnection: Connection,
-    @Query('slug') slug: string,
     @Body() getEntriesDto: GetEntriesDto,
     @Req() req: any,
   ) {
     try {
-      if (!slug) {
+      if (!getEntriesDto.slug) {
         throw new HttpException(
           { success: false, message: 'Slug parameter is required' },
           HttpStatus.BAD_REQUEST,
@@ -419,16 +418,13 @@ export class FormsController {
       const userId = req.user?.user_id;
       const result = await this.formsService.getFormEntries(
         dbConnection,
-        slug,
+        getEntriesDto.slug,
         getEntriesDto,
         userId,
       );
 
-      return {
-        success: true,
-        message: 'Form entries retrieved successfully',
-        data: result,
-      };
+      // Return Express-compatible format
+      return result;
     } catch (error) {
       throw new HttpException(
         {

@@ -121,7 +121,7 @@ export class Form extends Document {
   @Prop()
   title: string;
 
-  @Prop({ type: Array, default: [] })
+  @Prop({ type: Array, default: [], name: 'schema' })
   formSchema: any[];
 
   @Prop({ type: MongooseSchema.Types.Mixed, default: {} })

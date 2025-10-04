@@ -14,22 +14,24 @@ export class ProjectsService {
     this.registerSchemas(dbConnection);
 
     if (dbConnection.models.Project) {
-      return dbConnection.model('Project');
+      return dbConnection.models.Project;
     }
     return dbConnection.model('Project', ProjectSchema);
   }
 
   private registerSchemas(dbConnection: Connection): void {
+    // Import User schema
+    const { UserSchema } = require('../auth/schemas/user.schema');
+
     // Register User schema if not already registered (Express pattern)
     if (!dbConnection.models.users) {
-      const userSchema = require('../auth/schemas/user.schema').UserSchema;
-      dbConnection.model('users', userSchema, 'users');
+      dbConnection.model('users', UserSchema, 'users');
     }
 
     // Register Form schema if not already registered
     if (!dbConnection.models.Form) {
-      const formSchema = require('../forms/schemas/form.schema').FormSchema;
-      dbConnection.model('Form', formSchema);
+      const { FormSchema } = require('../forms/schemas/form.schema');
+      dbConnection.model('Form', FormSchema);
     }
   }
 

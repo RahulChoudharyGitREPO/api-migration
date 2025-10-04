@@ -1,5 +1,5 @@
 import { IsString, IsArray, IsOptional, IsBoolean, IsObject, IsEnum, ValidateNested } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Type, Transform } from 'class-transformer';
 import { Types } from 'mongoose';
 
 export class ConditionDto {
@@ -100,15 +100,11 @@ export class CreateFormDto {
   @IsOptional()
   title?: string;
 
-  @IsArray()
+  @Transform(({ value }) => value, { toClassOnly: true })
   @IsOptional()
-  formSchema?: any[];
+  schema?: any[];
 
-  @IsArray()
-  @IsOptional()
-  schema?: any[]; // Alias for formSchema (frontend compatibility)
-
-  @IsObject()
+  @Transform(({ value }) => value, { toClassOnly: true })
   @IsOptional()
   columnsPerPage?: any;
 
@@ -160,11 +156,11 @@ export class UpdateFormDto {
   @IsOptional()
   title?: string;
 
-  @IsArray()
+  @Transform(({ value }) => value, { toClassOnly: true })
   @IsOptional()
-  formSchema?: any[];
+  schema?: any[];
 
-  @IsObject()
+  @Transform(({ value }) => value, { toClassOnly: true })
   @IsOptional()
   columnsPerPage?: any;
 

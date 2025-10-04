@@ -3,18 +3,11 @@ import { Type } from 'class-transformer';
 
 export class ProjectListDto {
   @IsOptional()
-  @Type(() => Number)
-  @IsNumber()
-  @Min(1)
-  page?: number = 1;
+  page?: any; // Accept both string and number
 
   @IsOptional()
-  @Type(() => Number)
-  @IsNumber()
-  @Min(1)
-  limit?: number = 10;
+  limit?: any; // Accept both string and number
 
   @IsOptional()
-  @IsBoolean()
-  all?: boolean = false;
+  all?: any; // Accept both boolean and string
 }
