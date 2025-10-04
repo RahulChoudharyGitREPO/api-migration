@@ -733,64 +733,60 @@ Rules:
   }
 
   async createWorkflow(dbConnection: Connection, slug: string, workflowData: any, userId: string): Promise<any> {
-    const FormModel = this.getFormModel(dbConnection);
+    // Use native MongoDB collection
+    const collection = dbConnection.collection('forms');
 
-    const form = await FormModel.findOne({ slug });
+    const form = await collection.findOne({ slug });
     if (!form) {
       throw new NotFoundException('Form not found');
     }
 
-    // Check permissions
-    const hasPermission = form.createdBy?.toString() === userId ||
-      form.sharedWith.some(shared => shared.user.toString() === userId && shared.canEdit);
+    // In Express, workflowData is the entire workflows array, not a single workflow
+    // Update form by replacing the entire workflows array
+    const result = await collection.findOneAndUpdate(
+      { slug },
+      { $set: { workflows: workflowData, updatedAt: new Date() } },
+      { returnDocument: 'after' }
+    );
 
-    if (!hasPermission) {
-      throw new ConflictException('You do not have permission to create workflows for this form');
+    if (!result) {
+      throw new NotFoundException('Form not found');
     }
 
-    // Add workflow to form
-    if (!form.workflows) {
-      form.workflows = [];
-    }
-
-    const workflow = {
-      id: new Date().getTime().toString(),
-      name: workflowData.name,
-      description: workflowData.description || '',
-      steps: workflowData.steps,
-      triggers: workflowData.triggers || {},
-      logicOperator: workflowData.logicOperator || 'AND',
-      createdBy: userId,
-      createdAt: new Date(),
-    };
-
-    form.workflows.push(workflow);
-    await form.save();
-
-    return workflow;
+    return result;
   }
 
-  async updateLayout(dbConnection: Connection, slug: string, layoutData: any, userId: string): Promise<any> {
-    const FormModel = this.getFormModel(dbConnection);
+  async updateLayout(dbConnection: Connection, identifier: string, layoutSelections: any[], userId: string): Promise<any> {
+    // Use native MongoDB collection
+    const collection = dbConnection.collection('forms');
 
-    const form = await FormModel.findOne({ slug });
-    if (!form) {
+    // Determine if identifier is an ObjectId or slug
+    let query: any = {};
+
+    if (Types.ObjectId.isValid(identifier)) {
+      query._id = new Types.ObjectId(identifier);
+    } else {
+      query.slug = identifier;
+    }
+
+    // Update layout selections using native MongoDB
+    const result = await collection.findOneAndUpdate(
+      query,
+      { $set: { layoutSelections, updatedAt: new Date() } },
+      { returnDocument: 'after' }
+    );
+
+    if (!result) {
       throw new NotFoundException('Form not found');
     }
 
-    // Check permissions
-    const hasPermission = form.createdBy?.toString() === userId ||
-      form.sharedWith.some(shared => shared.user.toString() === userId && shared.canEdit);
-
-    if (!hasPermission) {
-      throw new ConflictException('You do not have permission to update layout for this form');
-    }
-
-    // Update layout selections
-    form.layoutSelections = layoutData.layout;
-    await form.save();
-
-    return form;
+    return {
+      _id: result._id,
+      slug: result.slug,
+      title: result.title,
+      layoutSelections: result.layoutSelections,
+      updatedAt: result.updatedAt,
+    };
   }
 
   async migrateForm(dbConnection: Connection, slug: string, userId: string): Promise<any> {

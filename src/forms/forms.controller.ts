@@ -596,25 +596,34 @@ export class FormsController {
   @Post('workflow/create')
   async createWorkflow(
     @DatabaseConnection() dbConnection: Connection,
-    @Body() body: { slug: string; workflow: any },
+    @Body() body: { formSlug: string; workflow: any },
     @Req() req: any,
   ) {
     try {
       const userId = req.user?.user_id;
-      const { slug, workflow } = body;
+      const { formSlug, workflow } = body;
 
-      const result = await this.formsService.createWorkflow(dbConnection, slug, workflow, userId);
+      if (!formSlug || !workflow) {
+        throw new HttpException(
+          {
+            success: false,
+            error: 'formSlug and workflow are required',
+          },
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+
+      const result = await this.formsService.createWorkflow(dbConnection, formSlug, workflow, userId);
 
       return {
         success: true,
-        message: 'Workflow created successfully',
         data: result,
       };
     } catch (error) {
       throw new HttpException(
         {
           success: false,
-          message: error.message || 'Failed to create workflow',
+          error: error.message || 'Failed to create workflow',
         },
         error.status || HttpStatus.INTERNAL_SERVER_ERROR,
       );
@@ -624,25 +633,46 @@ export class FormsController {
   @Post('update-layout')
   async updateLayout(
     @DatabaseConnection() dbConnection: Connection,
-    @Body() body: { slug: string; layout: any },
+    @Body() body: { identifier: string; layoutSelections: any[] },
     @Req() req: any,
   ) {
     try {
       const userId = req.user?.user_id;
-      const { slug, layout } = body;
+      const { identifier, layoutSelections } = body;
 
-      const result = await this.formsService.updateLayout(dbConnection, slug, { layout }, userId);
+      // Validate required fields
+      if (!identifier) {
+        throw new HttpException(
+          {
+            success: false,
+            error: 'Missing identifier (id or slug)',
+          },
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+
+      if (!layoutSelections || !Array.isArray(layoutSelections)) {
+        throw new HttpException(
+          {
+            success: false,
+            error: 'Missing or invalid layoutSelections array',
+          },
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+
+      const result = await this.formsService.updateLayout(dbConnection, identifier, layoutSelections, userId);
 
       return {
         success: true,
-        message: 'Layout updated successfully',
+        message: 'Layout selections updated successfully',
         data: result,
       };
     } catch (error) {
       throw new HttpException(
         {
           success: false,
-          message: error.message || 'Failed to update layout',
+          error: error.message || 'Internal Server Error',
         },
         error.status || HttpStatus.INTERNAL_SERVER_ERROR,
       );
