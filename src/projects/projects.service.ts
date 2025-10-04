@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { Connection, Model, Types } from 'mongoose';
-import { Project, ProjectDocument, ProjectSchema } from './project.schema';
+import { Project, ProjectSchema } from './project.schema';
 import { CreateProjectDto } from './dto/create-project.dto';
 import { UpdateProjectDto } from './dto/update-project.dto';
 import { ProjectListDto } from './dto/project-list.dto';
