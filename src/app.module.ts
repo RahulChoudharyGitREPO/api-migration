@@ -1,4 +1,4 @@
-import { Module } from "@nestjs/common";
+import { Module,  MiddlewareConsumer, NestModule, RequestMethod  } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
 import { AppController } from "./app.controller";
 import { AppService } from "./app.service";
@@ -19,6 +19,9 @@ import { DrillModule } from './drill/drill.module';
 import { ProfessionModule } from './profession/profession.module';
 import { OnboardingModule } from './onboarding/onboarding.module';
 import { CaregiversModule } from './caregivers/caregivers.module';
+import { JwtModule } from '@nestjs/jwt';
+import { JwtVerifyMiddleware } from './common/middleware/jwt-verify.middleware';
+import { getCompanyName } from './common/utils/company-name.extractor';
 
 @Module({
   imports: [
@@ -26,6 +29,7 @@ import { CaregiversModule } from './caregivers/caregivers.module';
       isGlobal: true,
       envFilePath: ".env",
     }),
+    JwtModule.register({}),
     DynamicDbModule,
     AuthModule,
     UsersModule,
@@ -44,7 +48,23 @@ import { CaregiversModule } from './caregivers/caregivers.module';
     OnboardingModule,
     CaregiversModule,
   ],
+
   controllers: [AppController],
   providers: [AppService],
 })
-export class AppModule {}
+
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer
+      .apply(JwtVerifyMiddleware)
+      .exclude(
+        // exclude ALL auth routes, e.g. /auth, /auth/login, /auth/refresh, etc.
+       { path: `:company/api/account`, method: RequestMethod.ALL },
+        { path: `:company/api/account/(.*)`, method: RequestMethod.ALL },
+        { path: 'krisiyukta/api/entity/details', method: RequestMethod.ALL },
+
+        
+      )
+      .forRoutes('*');
+  }
+}

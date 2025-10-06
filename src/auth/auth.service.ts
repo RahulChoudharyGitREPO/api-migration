@@ -36,12 +36,15 @@ export class AuthService {
       user_id: userData._id.toString(),
       user_name: userData.email,
       exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24,
+      ...userData
     };
 
     const secret = process.env.JWT_SECRET + companyName;
-    console.log('Auth Service - Generate Token - Company Name:', companyName);
-    console.log('Auth Service - Generate Token - Secret (partial):', secret.substring(0, 10) + '...');
-    return this.jwtService.sign(payload, { secret });
+    const token = this.jwtService.sign(payload, { secret });
+    // console.log('Auth Service - Generate Token - Company Name:', companyName);
+    // console.log('Auth Service - Generate Token - Secret (partial):', secret.substring(0, 10) + '...');
+    console.log('Auth Service - Generate Token - Token:', token);
+    return token;
   }
 
   /**
@@ -309,7 +312,7 @@ export class AuthService {
     try {
       const secret = process.env.JWT_SECRET + companyName;
       const decoded = this.jwtService.verify(token, { secret });
-      return { success: true, message: "verify Token success" };
+      return { success: true, message: "verify Token success", data: JSON.parse(decoded) };
     } catch (err) {
       return {
         success: false,

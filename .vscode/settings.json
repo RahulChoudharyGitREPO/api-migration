@@ -1,0 +1,10 @@
+{
+	"editor.codeActionsOnSave": {
+		"source.fixAll.eslint": "explicit",
+		"source.organizeImports": "never"
+	},
+	"editor.formatOnSave": true,
+	"eslint.validate": ["javascript"],
+	"editor.rulers": [80],
+	"postman.settings.dotenv-detection-notification-visibility": false
+}

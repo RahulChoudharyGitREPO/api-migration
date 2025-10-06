@@ -11,16 +11,12 @@ async function bootstrap() {
     credentials: true,
   });
 
-  // Remove api-root prefix to match Express setup
-  // app.setGlobalPrefix('api-root');
-
-  // Enable validation pipes globally
-  // Note: Express doesn't validate extra fields, so we set forbidNonWhitelisted: false for compatibility
+  
   app.useGlobalPipes(
     new ValidationPipe({
-      whitelist: false, // Allow extra fields (Express compatibility)
-      transform: false, // Disable transformation to preserve nested objects
-      forbidNonWhitelisted: false, // Don't reject extra fields
+      whitelist: false, 
+      transform: false, 
+      forbidNonWhitelisted: false, 
       transformOptions: {
         enableImplicitConversion: false,
       },
