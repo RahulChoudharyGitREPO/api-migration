@@ -311,9 +311,12 @@ export class AuthService {
 
     try {
       const secret = process.env.JWT_SECRET + companyName;
+      console.log('Auth Service - Verify User - Company Name:', companyName);
+      console.log('Auth Service - Verify User - Secret (partial):', secret.substring(0, 10) + '...');
       const decoded = this.jwtService.verify(token, { secret });
-      return { success: true, message: "verify Token success", data: JSON.parse(decoded) };
+      return { success: true, message: "verify Token success", data: decoded };
     } catch (err) {
+      console.error('Auth Service - Verify User - Error:', err.message);
       return {
         success: false,
         message: "Failed to authenticate token",

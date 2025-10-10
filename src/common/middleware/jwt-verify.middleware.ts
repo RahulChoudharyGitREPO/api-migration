@@ -20,27 +20,38 @@ export class JwtVerifyMiddleware implements NestMiddleware {
     // allow preflight
     if (req.method === 'OPTIONS') return next();
 
-    // get token
+    // get token - Express sends token directly without Bearer prefix
     const auth = req.headers['authorization'];
-    const token = auth?.startsWith('Bearer ') ? auth.slice(7).trim()  : undefined;
+    let token: string | undefined;
+
+    if (auth) {
+      // Support both "Bearer <token>" and raw token (Express compatibility)
+      token = auth.startsWith('Bearer ') ? auth.slice(7).trim() : auth.trim();
+    }
 
     if (!token || token === '') {
       return res.status(401).json({ success: false, message: 'No token provided' });
     }
 
     // get company name (adjust to your source: header, subdomain, param, etc.)
-    const companyName =  getCompanyName(req); 
+    const companyName =  getCompanyName(req);
     if (!companyName) {
       return res.status(400).json({ success: false, message: 'No company name provided' });
     }
 
     try {
-      const secret = (process.env.JWT_SECRET || '') 
+      // IMPORTANT: Token is signed with JWT_SECRET + companyName, so we must verify with the same secret
+      const secret = (process.env.JWT_SECRET || '') + companyName;
+      console.log('JWT Middleware - URL:', req.originalUrl);
+      console.log('JWT Middleware - Company Name:', companyName);
+      console.log('JWT Middleware - Secret (partial):', secret.substring(0, 10) + '...');
+
       const decoded = this.jwtService.verify(token, { secret }); // returns an object
       req.user = decoded;
       req.companyName = companyName;
       return next();
     } catch (err) {
+      console.error('JWT Middleware - Verification Error:', err.message);
       return res.status(401).json({ success: false, message: 'Failed to authenticate token' });
     }
   }

@@ -74,9 +74,14 @@ export class AuthController {
 
   @Post("verify-user")
   verifyUser(
-    @Headers("authorization") token: string,
+    @Headers("authorization") authHeader: string,
     @CompanyName() companyName: string,
   ) {
+    // Extract token from "Bearer <token>" format
+    const token = authHeader?.startsWith('Bearer ')
+      ? authHeader.slice(7).trim()
+      : authHeader;
+
     return this.authService.verifyUser(token, companyName);
   }
 }

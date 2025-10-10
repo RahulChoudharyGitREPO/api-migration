@@ -398,11 +398,14 @@ Rules:
   }
 
   private getUserModel(dbConnection: Connection): any {
-    if (!dbConnection.models.User) {
-      const userSchema = require('../auth/schemas/user.schema').UserSchema;
-      return dbConnection.model('User', userSchema);
+    // Check if model already exists with the correct name
+    if (dbConnection.models['users']) {
+      return dbConnection.models['users'];
     }
-    return dbConnection.model('User');
+
+    // Create the model with the same pattern as other services (matching Express)
+    const userSchema = require('../auth/schemas/user.schema').UserSchema;
+    return dbConnection.model('users', userSchema, 'users');
   }
 
   async deleteForm(dbConnection: Connection, slug: string, userId: string): Promise<void> {

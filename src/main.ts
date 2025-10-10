@@ -11,12 +11,14 @@ async function bootstrap() {
     credentials: true,
   });
 
-  
+  // No global prefix - routes are defined as /:companyName/api/... directly
+
+
   app.useGlobalPipes(
     new ValidationPipe({
-      whitelist: false, 
-      transform: false, 
-      forbidNonWhitelisted: false, 
+      whitelist: false,
+      transform: false,
+      forbidNonWhitelisted: false,
       transformOptions: {
         enableImplicitConversion: false,
       },
