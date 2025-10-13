@@ -18,6 +18,10 @@ lerna-debug.log*
 # Tests
 /coverage
 /.nyc_output
+test-auth.sh
+test-frontend-integration.sh
+test-backend.sh
+test-e2e.sh
 
 # IDEs and editors
 /.idea
