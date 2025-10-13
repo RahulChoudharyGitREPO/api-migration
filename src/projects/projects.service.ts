@@ -141,7 +141,10 @@ export class ProjectsService {
 
     if (fetchAll) {
       const projects = await ProjectModel.find({})
-        .sort({ createdAt: -1 });
+        .sort({ createdAt: -1 })
+        .populate('projectManager', 'name email')
+        .populate('createdBy', 'name email')
+        .populate('updatedBy', 'name email');
 
       return {
         data: projects,
@@ -156,7 +159,10 @@ export class ProjectsService {
     const projects = await ProjectModel.find({})
       .skip((pageNum - 1) * limitNum)
       .limit(limitNum)
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .populate('projectManager', 'name email')
+      .populate('createdBy', 'name email')
+      .populate('updatedBy', 'name email');
 
     return {
       data: projects,
