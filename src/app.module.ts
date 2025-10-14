@@ -19,6 +19,14 @@ import { DrillModule } from './drill/drill.module';
 import { ProfessionModule } from './profession/profession.module';
 import { OnboardingModule } from './onboarding/onboarding.module';
 import { CaregiversModule } from './caregivers/caregivers.module';
+import { FrameworkModule } from './framework/framework.module';
+import { ThematicAreaModule } from './thematic-area/thematic-area.module';
+import { ProgramConfigModule } from './program-config/program-config.module';
+import { KpiConfigModule } from './kpi-config/kpi-config.module';
+import { PartnerConfigModule } from './partner-config/partner-config.module';
+import { ThematicareaConfigModule } from './thematicarea-config/thematicarea-config.module';
+import { AiModule } from './ai/ai.module';
+import { UserAccessModule } from './user-access/user-access.module';
 import { JwtModule } from '@nestjs/jwt';
 import { JwtVerifyMiddleware } from './common/middleware/jwt-verify.middleware';
 import { getCompanyName } from './common/utils/company-name.extractor';
@@ -47,6 +55,14 @@ import { getCompanyName } from './common/utils/company-name.extractor';
     ProfessionModule,
     OnboardingModule,
     CaregiversModule,
+    FrameworkModule,
+    ThematicAreaModule,
+    ProgramConfigModule,
+    KpiConfigModule,
+    PartnerConfigModule,
+    ThematicareaConfigModule,
+    AiModule,
+    UserAccessModule,
   ],
 
   controllers: [AppController],

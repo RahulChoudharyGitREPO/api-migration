@@ -20,10 +20,11 @@ import { GetUsersPaginationDto } from "./dto/get-users-pagination.dto";
 import { QueryUserDto } from "./dto/query-user.dto";
 import { ResendPasswordDto } from "./dto/resend-password.dto";
 import { RegisterUserDto } from "../auth/dto/register-user.dto";
+import { EmailService } from "../email/email.service";
 
 @Injectable()
 export class UsersService {
-  constructor() {}
+  constructor(private readonly emailService: EmailService) {}
 
   private getUserModel(dbConnection: Connection): Model<any> {
     return dbConnection.model("users", UserSchema, "users");
@@ -336,6 +337,7 @@ export class UsersService {
           addressLine2: registerDto.addressLine2,
           entities: registerDto.entities,
           projects: registerDto.projects,
+          projectManager: registerDto.projectManager,
         },
         { new: true, runValidators: true },
       );
@@ -356,6 +358,7 @@ export class UsersService {
         addressLine2: registerDto.addressLine2,
         entities: registerDto.entities,
         projects: registerDto.projects,
+        projectManager: registerDto.projectManager,
         passwordHash: passwordHash,
       });
 
@@ -366,14 +369,17 @@ export class UsersService {
 
       const emailTemplate = this.createPasswordEmailTemplate(url);
 
-      // TODO: Implement email sending service
-      // await this.sendMailAsync(
-      //   { name: user.name, email: user.email },
-      //   "Password creation",
-      //   emailTemplate
-      // );
-
-      console.log("Password creation URL:", url);
+      // Send email
+      try {
+        await this.emailService.sendMail(
+          { name: user.name, email: user.email },
+          "Password creation",
+          emailTemplate
+        );
+        console.log("email sent successfully ", { name: user.name, email: user.email });
+      } catch (error) {
+        console.error("Error sending email:", error);
+      }
 
       user = await userModel.findById(user._id);
     }
@@ -398,7 +404,7 @@ export class UsersService {
     const query: any = {};
 
     // If Id is provided
-    if (Id && Id !== 0) {
+    if (Id && Id !== "") {
       query._id = Id;
     }
 
@@ -408,7 +414,7 @@ export class UsersService {
     }
 
     const userModel = this.getUserModel(dbConnection);
-    const userData = await userModel.find(query);
+    const userData = await userModel.find(query).populate('projectManager');
 
     if (userData && userData.length > 0) {
       return {

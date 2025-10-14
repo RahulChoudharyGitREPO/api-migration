@@ -23,10 +23,15 @@ export class ProjectsService {
     // Import User schema
     const { UserSchema } = require('../auth/schemas/user.schema');
 
-    // Register User schema if not already registered (Express pattern)
-    if (!dbConnection.models.users) {
-      dbConnection.model('users', UserSchema, 'users');
+    // Register User schema - force re-registration with updated schema
+    try {
+      if (dbConnection.models.users) {
+        dbConnection.deleteModel('users');
+      }
+    } catch (error) {
+      // Ignore if model doesn't exist
     }
+    dbConnection.model('users', UserSchema, 'users');
 
     // Register Form schema if not already registered
     if (!dbConnection.models.Form) {
@@ -142,7 +147,7 @@ export class ProjectsService {
     if (fetchAll) {
       const projects = await ProjectModel.find({})
         .sort({ createdAt: -1 })
-        .populate('projectManager', 'name email')
+        .populate('projectManager', 'name email mobile')
         .populate('createdBy', 'name email')
         .populate('updatedBy', 'name email');
 
@@ -160,7 +165,7 @@ export class ProjectsService {
       .skip((pageNum - 1) * limitNum)
       .limit(limitNum)
       .sort({ createdAt: -1 })
-      .populate('projectManager', 'name email')
+      .populate('projectManager', 'name email mobile')
       .populate('createdBy', 'name email')
       .populate('updatedBy', 'name email');
 

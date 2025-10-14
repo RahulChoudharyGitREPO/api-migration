@@ -41,6 +41,9 @@ export class Step {
   @Prop({ default: false })
   notifyCreator: boolean;
 
+  @Prop({ default: true })
+  notifyManager: boolean;
+
   @Prop({
     type: {
       email: { type: Boolean, default: false },

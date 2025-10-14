@@ -1,11 +1,11 @@
-import { IsBoolean, IsOptional, IsNumber } from "class-validator";
+import { IsBoolean, IsOptional, IsString } from "class-validator";
 
 export class GetAllUsersDto {
   @IsBoolean()
   @IsOptional()
   showRemovedUser?: boolean = false;
 
-  @IsNumber()
+  @IsString()
   @IsOptional()
-  Id?: number;
+  Id?: string;
 }

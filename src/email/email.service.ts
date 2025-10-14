@@ -82,4 +82,11 @@ export class EmailService {
 
     return this.sendMail(user, subject, body);
   }
+
+  /**
+   * Send email (simplified interface for workflow notifications)
+   */
+  async sendEmail(to: string, subject: string, html: string): Promise<boolean> {
+    return this.sendMail({ email: to }, subject, html);
+  }
 }

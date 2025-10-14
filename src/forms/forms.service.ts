@@ -488,75 +488,219 @@ Rules:
     const limitNum = parseInt(limit) || 10;
     const skip = (pageNum - 1) * limitNum;
 
+    // Get form with project details using aggregation (matches Express)
+    const result = await dbConnection.collection('forms').aggregate([
+      { $match: { slug } },
+      {
+        $lookup: {
+          from: 'projects',
+          localField: 'projects',
+          foreignField: '_id',
+          as: 'projectDetails',
+        },
+      },
+    ]).toArray();
+
+    const form = result[0];
+
+    if (!form) {
+      throw new NotFoundException('Form not found');
+    }
+
     const slugName = projectName && projectName.trim() !== 'null'
       ? `${slug}_${this.sanitize(projectName)}`
       : slug;
 
-    // Get form definition to build schema
-    const formsCollection = dbConnection.collection('forms');
-    const form = await formsCollection.findOne({ slug });
+    const collection = dbConnection.collection(slugName);
 
-    // Build schema from form definition
-    const schema: any[] = [];
-    if (form && form.schema && Array.isArray(form.schema)) {
-      form.schema.forEach((page: any) => {
-        if (page.elements && Array.isArray(page.elements)) {
-          page.elements.forEach((element: any) => {
-            if (element.properties && element.properties.label) {
-              schema.push({
-                label: element.properties.label,
-                type: element.type,
-                ...element.properties
-              });
-            }
-          });
+    // Build MongoDB query (match Express)
+    const mongoQuery: any = {};
+
+    if (isDraft) {
+      mongoQuery.isDraft = true;
+    } else {
+      mongoQuery.isDraft = { $in: [false, null] };
+    }
+
+    // Apply filters (match Express)
+    if (filters) {
+      Object.entries(filters).forEach(([key, condition]: [string, any]) => {
+        const { value, matchMode } = condition;
+        if (value === null || value === undefined || value === '') return;
+
+        switch (matchMode) {
+          case 'contains':
+          case 'startsWith':
+          case 'endsWith': {
+            let regexPattern = value;
+            if (matchMode === 'startsWith') regexPattern = `^${value}`;
+            else if (matchMode === 'endsWith') regexPattern = `${value}$`;
+            mongoQuery[key] = { $regex: regexPattern, $options: 'i' };
+            break;
+          }
+          case 'equals':
+          case 'dateIs':
+            mongoQuery[key] = value;
+            break;
+          default:
+            break;
         }
       });
     }
 
-    const collection = dbConnection.collection(slugName);
+    const sortOptions = sortField ? { [sortField]: parseInt(sortOrder || '1') } : {};
 
-    // Build query
-    let query: any = {};
+    // Build history lookups (match Express)
+    const historyLookups: any[] = [];
+    if (form.schema && Array.isArray(form.schema)) {
+      form.schema.forEach((page: any) => {
+        if (!Array.isArray(page.elements)) return;
 
-    // Only add isDraft filter if explicitly provided
-    if (isDraft !== undefined && isDraft !== null) {
-      query.isDraft = isDraft;
+        page.elements.forEach((field: any) => {
+          if (field.type === 'History' && field.properties?.label) {
+            const originalFieldKey = field.properties.label;
+            const transformedFieldKey = field.properties.label
+              .replace(/\s+/g, '_')
+              .toLowerCase();
+
+            const refCollection = `${slugName}_${transformedFieldKey}`;
+
+            historyLookups.push(
+              {
+                $lookup: {
+                  from: refCollection,
+                  localField: originalFieldKey,
+                  foreignField: '_id',
+                  as: `${originalFieldKey}_populated`,
+                },
+              },
+              {
+                $addFields: {
+                  [originalFieldKey]: {
+                    $map: {
+                      input: `$${originalFieldKey}_populated`,
+                      as: 'historyItem',
+                      in: {
+                        $mergeObjects: [
+                          '$$historyItem',
+                          {
+                            _displayValue: {
+                              $concat: [
+                                'Created: ',
+                                {
+                                  $dateToString: {
+                                    date: '$$historyItem.createdAt',
+                                    format: '%Y-%m-%d %H:%M',
+                                  },
+                                },
+                                ' | ID: ',
+                                { $toString: '$$historyItem._id' },
+                              ],
+                            },
+                          },
+                        ],
+                      },
+                    },
+                  },
+                },
+              },
+              {
+                $unset: `${originalFieldKey}_populated`,
+              }
+            );
+          }
+        });
+      });
     }
 
-    if (search) {
-      // Simple text search across all fields
-      query.$or = [
-        { 'createdBy': { $regex: search, $options: 'i' } },
-        // Add more searchable fields as needed
-      ];
-    }
-
-    if (filters) {
-      Object.assign(query, filters);
-    }
-
-    // Build sort options
-    let sortOptions: any = { createdAt: -1 }; // Default sort
-    if (sortField) {
-      sortOptions = { [sortField]: sortOrder === 'asc' ? 1 : -1 };
-    }
+    // Use aggregation pipeline (match Express)
+    const pipeline = [
+      { $match: mongoQuery },
+      ...historyLookups,
+      ...(Object.keys(sortOptions).length > 0 ? [{ $sort: sortOptions }] : []),
+      { $skip: skip },
+      { $limit: limitNum },
+    ];
 
     const [data, total] = await Promise.all([
-      collection.find(query).sort(sortOptions).skip(skip).limit(limitNum).toArray(),
-      collection.countDocuments(query),
+      collection.aggregate(pipeline).toArray(),
+      collection.countDocuments(mongoQuery),
     ]);
 
-    // Match Express response format
+    // Generate columns schema (match Express exactly)
+    const columns = form.schema.flatMap((page: any) => {
+      if (!Array.isArray(page.elements)) return [];
+
+      return page.elements.flatMap((field: any) => {
+        if (!field) return [];
+
+        const processField = (f: any) => {
+          const label = f?.properties?.label;
+          const fieldKey = label
+            ? label.replace(/\s+/g, '_').toLowerCase()
+            : `field_${f.id}`;
+
+          const baseColumn = {
+            field: fieldKey,
+            type: f.type || 'text',
+            page: page.page || 1,
+            label: label || `Field ${f.id}`,
+            id: f.id,
+            ...f.properties,
+          };
+
+          // Add cascade labelFields as extra columns
+          const cascadeColumns: any[] = [];
+          const optsSrc = f.properties?.optionsSource;
+          if (optsSrc?.isCascade && Array.isArray(optsSrc.labelFields)) {
+            optsSrc.labelFields.forEach((labelField: string) => {
+              const cascadeFieldKey = labelField
+                .replace(/\s+/g, '_')
+                .toLowerCase();
+              cascadeColumns.push({
+                field: cascadeFieldKey,
+                type: 'text',
+                page: page.page || 1,
+                label: labelField,
+                isCascade: true,
+              });
+            });
+          }
+
+          return [baseColumn, ...cascadeColumns];
+        };
+
+        // Handle Box type with children
+        if (field.type === 'Box' && Array.isArray(field.children)) {
+          return field.children
+            .filter((child: any) => child.type !== 'Title' && child.type !== 'Spacer')
+            .flatMap(processField);
+        }
+
+        // Skip title and spacer fields
+        if (field.type === 'Title' || field.type === 'Spacer') return [];
+
+        return processField(field);
+      });
+    });
+
+    // Get project status (match Express)
+    const project = Array.isArray(form?.projectDetails) &&
+      form?.projectDetails?.length !== 0 &&
+      form?.projectDetails.find((p: any) => p.projectName === projectName);
+
+    const status = project?.status;
+
+    // Match Express response format exactly
     return {
       data,
-      schema,
+      schema: columns,
       pagination: {
         total,
         page: pageNum,
         limit: limitNum,
       },
-      projectStatus: null, // TODO: Get project status if needed
+      projectStatus: status?.toString(),
     };
   }
 
@@ -1101,32 +1245,326 @@ Rules:
       ? `${slug}_${this.sanitize(project)}`
       : slug;
 
-    const collection = dbConnection.collection(slugName);
+    // Get form with project details using aggregation (matches Express)
+    const result = await dbConnection.collection('forms').aggregate([
+      { $match: { slug } },
+      {
+        $lookup: {
+          from: 'projects',
+          localField: 'projects',
+          foreignField: '_id',
+          as: 'projectDetails',
+        },
+      },
+    ]).toArray();
 
-    // Get the specific entry
-    const entry = await collection.findOne({ _id: new ObjectId(entryId) });
+    const form = result[0];
+
+    if (!form) {
+      throw new NotFoundException('Form not found');
+    }
+
+    // Get project status
+    const projectObj = Array.isArray(form?.projectDetails) &&
+      form?.projectDetails?.length !== 0 &&
+      form?.projectDetails.find((p: any) => p.projectName === project);
+
+    const status = projectObj?.status;
+
+    // Build history lookups (match Express)
+    const historyLookups: any[] = [];
+    if (form.schema && Array.isArray(form.schema)) {
+      form.schema.forEach((page: any) => {
+        if (!Array.isArray(page.elements)) return;
+
+        page.elements.forEach((field: any) => {
+          if (field.type === 'History' && field.properties?.label) {
+            const originalFieldKey = field.properties.label;
+            const transformedFieldKey = field.properties.label
+              .replace(/\s+/g, '_')
+              .toLowerCase();
+
+            const refCollection = `${slugName}_${transformedFieldKey}`;
+
+            historyLookups.push(
+              {
+                $lookup: {
+                  from: refCollection,
+                  localField: originalFieldKey,
+                  foreignField: '_id',
+                  as: `${originalFieldKey}_populated`,
+                },
+              },
+              {
+                $addFields: {
+                  [originalFieldKey]: {
+                    $map: {
+                      input: `$${originalFieldKey}_populated`,
+                      as: 'historyItem',
+                      in: {
+                        $mergeObjects: [
+                          '$$historyItem',
+                          {
+                            _displayValue: {
+                              $concat: [
+                                'Created: ',
+                                {
+                                  $dateToString: {
+                                    date: '$$historyItem.createdAt',
+                                    format: '%Y-%m-%d %H:%M',
+                                  },
+                                },
+                                ' | ID: ',
+                                { $toString: '$$historyItem._id' },
+                              ],
+                            },
+                          },
+                        ],
+                      },
+                    },
+                  },
+                },
+              },
+              {
+                $unset: `${originalFieldKey}_populated`,
+              }
+            );
+          }
+        });
+      });
+    }
+
+    // Get entry with history fields populated
+    const entryPipeline = [
+      { $match: { _id: new ObjectId(entryId) } },
+      ...historyLookups,
+    ];
+
+    const collection = dbConnection.collection(slugName);
+    const entryResult = await collection.aggregate(entryPipeline).toArray();
+    const entry = entryResult[0];
+
     if (!entry) {
       throw new NotFoundException('Entry not found');
     }
 
-    // Get position in collection for navigation
+    // Create flattened schema (match Express)
+    const flattenedSchema: any[] = [];
+    form.schema.forEach((page: any, pageIndex: number) => {
+      if (page.elements && Array.isArray(page.elements)) {
+        page.elements.forEach((element: any) => {
+          if (element.type === 'Box' && Array.isArray(element.children)) {
+            element.children.forEach((child: any) => {
+              flattenedSchema.push({
+                ...child,
+                page: pageIndex + 1,
+              });
+            });
+          } else {
+            flattenedSchema.push({
+              ...element,
+              page: pageIndex + 1,
+            });
+          }
+        });
+      }
+    });
+
+    // Create field schema map
+    const fieldSchemaMap: any = {};
+    flattenedSchema.forEach((field: any) => {
+      if (!field) return;
+
+      const label = field?.properties?.label;
+      if (label) {
+        fieldSchemaMap[label] = {
+          type: field.type,
+          schemaType: field.schemaType,
+          fieldId: field.id,
+          required: field.required || field.properties?.required || false,
+          properties: field.properties || {},
+          page: field.page || 1,
+        };
+
+        // Also map variations of the field name
+        const normalizedLabel = label.toLowerCase().replace(/\s+/g, '_');
+        fieldSchemaMap[normalizedLabel] = fieldSchemaMap[label];
+      }
+    });
+
+    // Process entry and add type information
+    const processedEntry: any = { ...entry };
+
+    Object.keys(processedEntry).forEach((fieldName) => {
+      if (
+        fieldName !== '_id' &&
+        fieldName !== 'createdAt' &&
+        fieldName !== 'updatedAt' &&
+        fieldName !== '__v'
+      ) {
+        const schemaInfo = fieldSchemaMap[fieldName];
+
+        if (schemaInfo) {
+          // If the field value is an object, preserve it but add metadata
+          if (
+            typeof processedEntry[fieldName] === 'object' &&
+            processedEntry[fieldName] !== null &&
+            !Array.isArray(processedEntry[fieldName])
+          ) {
+            processedEntry[fieldName] = {
+              ...processedEntry[fieldName],
+              _metadata: {
+                type: schemaInfo.type,
+                schemaType: schemaInfo.schemaType,
+                fieldId: schemaInfo.fieldId,
+                required: schemaInfo.required,
+                page: schemaInfo.page,
+                label: fieldName,
+              },
+            };
+          } else {
+            // For primitive values, create an object with value and metadata
+            processedEntry[fieldName] = {
+              value: processedEntry[fieldName],
+              type: schemaInfo.type,
+              schemaType: schemaInfo.schemaType,
+              fieldId: schemaInfo.fieldId,
+              required: schemaInfo.required,
+              page: schemaInfo.page,
+              label: fieldName,
+              properties: schemaInfo.properties,
+            };
+
+            // Handle cascade fields
+            if (
+              schemaInfo.properties?.optionsSource?.isCascade &&
+              schemaInfo.properties?.optionsSource?.labelFields?.length
+            ) {
+              schemaInfo.properties.optionsSource.labelFields.forEach(
+                (labelField: string) => {
+                  if (entry[labelField] !== undefined) {
+                    processedEntry[labelField] = {
+                      value: entry[labelField],
+                      type: 'Input',
+                      schemaType: 'text',
+                      fieldId: schemaInfo.fieldId,
+                      required: false,
+                      page: schemaInfo.page,
+                      label: labelField,
+                      properties: {},
+                    };
+                  }
+                }
+              );
+            }
+          }
+        }
+      }
+    });
+
+    // Extract titles from schema
+    const titlesFromSchema: any = {};
+    let titleCounter = 0;
+
+    form.schema.forEach((page: any, pageIndex: number) => {
+      const pageNumber = pageIndex + 1;
+
+      if (page.elements && Array.isArray(page.elements)) {
+        page.elements.forEach((element: any, elementIndex: number) => {
+          if (element.type === 'Title') {
+            titleCounter++;
+            const titleKey = titleCounter === 1 ? 'title' : `title_${titleCounter}`;
+
+            titlesFromSchema[titleKey] = {
+              value: element.properties?.text || 'Untitled',
+              type: 'Title',
+              schemaType: null,
+              fieldId: element.id,
+              required: false,
+              page: pageNumber,
+              label: `Title ${titleCounter}`,
+              order: titleCounter,
+              elementIndex: elementIndex,
+              properties: {
+                text: element.properties?.text || 'Untitled',
+                alignment: element.properties?.alignment || 'left',
+                color: element.properties?.color || '#000000',
+                fontSize: element.properties?.fontSize || 16,
+                fontWeight: element.properties?.fontWeight || 'normal',
+              },
+            };
+          }
+        });
+      }
+    });
+
+    // Create ordered entry (match Express)
+    const orderedEntry: any = {};
+
+    // First add system fields
+    orderedEntry._id = processedEntry._id;
+
+    // Then add fields in schema order (including titles)
+    form.schema.forEach((page: any) => {
+      if (page.elements && Array.isArray(page.elements)) {
+        page.elements.forEach((element: any) => {
+          if (element.type === 'Title') {
+            // Add title in order
+            const titleKey = Object.keys(titlesFromSchema).find(
+              (key) => titlesFromSchema[key].fieldId === element.id
+            );
+            if (titleKey && titlesFromSchema[titleKey]) {
+              orderedEntry[titleKey] = titlesFromSchema[titleKey];
+            }
+          } else if (element.type !== 'Spacer' && element.type !== 'Button') {
+            // Add regular fields in order
+            const label = element?.properties?.label;
+            if (label && processedEntry[label]) {
+              orderedEntry[label] = processedEntry[label];
+            }
+            const isCascade =
+              element?.properties?.optionsSource?.isCascade &&
+              element?.properties?.optionsSource?.labelFields?.length;
+            if (isCascade) {
+              // Include cascade label fields if they exist in the entry
+              element.properties.optionsSource.labelFields.forEach(
+                (labelField: string) => {
+                  if (processedEntry[labelField]) {
+                    orderedEntry[labelField] = processedEntry[labelField];
+                  }
+                }
+              );
+            }
+          }
+        });
+      }
+    });
+
+    // Finally add remaining system fields
+    orderedEntry.createdAt = processedEntry.createdAt;
+    orderedEntry.updatedAt = processedEntry.updatedAt;
+    orderedEntry.createdBy = processedEntry.createdBy;
+    orderedEntry.updatedBy = processedEntry.updatedBy;
+    orderedEntry.workFlowSteps = processedEntry.workFlowSteps;
+    orderedEntry.__v = processedEntry.__v;
+
+    // Get navigation info
     const allEntries = await collection.find({})
       .sort({ createdAt: 1 })
       .project({ _id: 1 })
       .toArray();
 
     const currentIndex = allEntries.findIndex(e => e._id.toString() === entryId);
-    const previousEntry = currentIndex > 0 ? allEntries[currentIndex - 1] : null;
     const nextEntry = currentIndex < allEntries.length - 1 ? allEntries[currentIndex + 1] : null;
 
     return {
-      entry,
+      entry: orderedEntry,
       navigation: {
         current: currentIndex + 1,
         total: allEntries.length,
-        previous: previousEntry?._id,
         next: nextEntry?._id
-      }
+      },
+      status: status?.toString() || null,
     };
   }
 

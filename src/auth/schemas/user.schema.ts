@@ -55,6 +55,9 @@ export class User {
 
   @Prop({ type: [{ type: Types.ObjectId, ref: "Project" }] })
   projects: Types.ObjectId[];
+
+  @Prop({ type: Types.ObjectId, ref: "users" })
+  projectManager: Types.ObjectId;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);

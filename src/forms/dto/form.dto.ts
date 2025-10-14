@@ -27,6 +27,10 @@ export class StepDto {
   @IsOptional()
   notifyCreator?: boolean;
 
+  @IsBoolean()
+  @IsOptional()
+  notifyManager?: boolean;
+
   @IsObject()
   @IsOptional()
   notifyChannels?: {

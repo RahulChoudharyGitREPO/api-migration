@@ -6,6 +6,7 @@ import {
   Req,
   UseGuards,
   Query,
+  Param,
   UsePipes,
   ValidationPipe,
   RawBodyRequest,
@@ -126,15 +127,19 @@ export class UsersController {
   }
 
   /**
-   * Get user details endpoint (copied from original: GET /details)
+   * Get user details endpoint (copied from original: GET /details?id=xxx)
    */
   @Get("details")
   async getUserDetails(
-    @Query("id") id: string,
+    @Query() query: any,
     @CompanyName() companyName: string,
     @DatabaseConnection() dbConnection: Connection,
   ) {
     try {
+      const id = query.id;
+      if (!id) {
+        throw new Error("User ID is required");
+      }
       return await this.usersService.getUserDetails(
         id,
         companyName,

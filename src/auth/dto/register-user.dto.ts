@@ -71,5 +71,9 @@ export class RegisterUserDto {
 
   @IsOptional()
   @IsString()
+  projectManager?: string;
+
+  @IsOptional()
+  @IsString()
   hostURL?: string;
 }

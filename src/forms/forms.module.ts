@@ -3,8 +3,10 @@ import { ConfigModule } from '@nestjs/config';
 import { FormsController } from './forms.controller';
 import { FormsService } from './forms.service';
 import { FormProcessorService } from './form-processor.service';
+import { WorkflowTriggerService } from './workflow-trigger.service';
 import { DynamicDbModule } from '../database/dynamic-db.module';
 import { AuthModule } from '../auth/auth.module';
+import { EmailService } from '../email/email.service';
 
 @Module({
   imports: [
@@ -13,8 +15,8 @@ import { AuthModule } from '../auth/auth.module';
     AuthModule,
   ],
   controllers: [FormsController],
-  providers: [FormsService, FormProcessorService],
-  exports: [FormsService, FormProcessorService],
+  providers: [FormsService, FormProcessorService, WorkflowTriggerService, EmailService],
+  exports: [FormsService, FormProcessorService, WorkflowTriggerService],
 })
 export class FormsModule {
   constructor(
