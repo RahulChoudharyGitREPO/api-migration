@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
 import { Connection, Model, Types } from 'mongoose';
 import { Program, ProgramSchema } from './schemas/program.schema';
-import { CreateProgramDto, ProgramListDto } from './dto/program.dto';
+import { CreateProgramDto, UpdateProgramDto, ProgramListDto } from './dto/program.dto';
 import { validateSchemaFormat } from '../common/utils/schema-validator';
 
 @Injectable()
@@ -106,6 +106,41 @@ export class ProgramsService {
         totalPages,
       },
     };
+  }
+
+  async updateProgram(dbConnection: Connection, updateProgramDto: UpdateProgramDto): Promise<Program> {
+    const ProgramModel = this.getProgramModel(dbConnection);
+    const { id, schema, ...updateData } = updateProgramDto;
+
+    if (!Types.ObjectId.isValid(id)) {
+      throw new BadRequestException('Invalid ID format!');
+    }
+
+    if (schema) {
+      const { isValid, error } = validateSchemaFormat(schema);
+      if (!isValid) {
+        throw new BadRequestException(`Schema validation failed: ${error}`);
+      }
+    }
+
+    try {
+      const result = await ProgramModel.findByIdAndUpdate(
+        id,
+        { ...updateData, ...(schema && { schema }) },
+        { new: true }
+      ).populate(['thematicAreas', 'partnerName']);
+
+      if (!result) {
+        throw new NotFoundException('Program not found!');
+      }
+
+      return result;
+    } catch (err) {
+      if (err.name === 'MongoServerError' && err.code === 11000) {
+        throw new ConflictException('Program name already exists.');
+      }
+      throw err;
+    }
   }
 
   async getProgramDetails(dbConnection: Connection, id: string): Promise<Program> {

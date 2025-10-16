@@ -1,7 +1,7 @@
 import { Injectable, BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
-import { Connection, Model } from 'mongoose';
+import { Connection, Model, Types } from 'mongoose';
 import { Partner, PartnerSchema } from './schemas/partner.schema';
-import { CreatePartnerDto, PartnerListDto } from './dto/partner.dto';
+import { CreatePartnerDto, UpdatePartnerDto, PartnerListDto } from './dto/partner.dto';
 import { validateSchemaFormat } from '../common/utils/schema-validator';
 
 @Injectable()
@@ -86,6 +86,43 @@ export class PartnersService {
         totalPages,
       },
     };
+  }
+
+  async updatePartner(dbConnection: Connection, updatePartnerDto: UpdatePartnerDto): Promise<Partner> {
+    const PartnerModel = this.getPartnerModel(dbConnection);
+    const { id, schema = [], ...updateData } = updatePartnerDto;
+
+    if (!Types.ObjectId.isValid(id)) {
+      throw new BadRequestException('Invalid ID format!');
+    }
+
+    // Validate schema format
+    const { isValid, error } = validateSchemaFormat(schema);
+    if (!isValid) {
+      throw new BadRequestException(`Schema validation failed: ${error}`);
+    }
+
+    try {
+      const result = await PartnerModel.findByIdAndUpdate(
+        id,
+        { ...updateData, schema },
+        { new: true }
+      );
+
+      if (!result) {
+        throw new NotFoundException('Partner not found!');
+      }
+
+      return result;
+    } catch (err: any) {
+      if (err.name === 'MongoServerError' && err.code === 11000) {
+        if (err?.keyPattern?.partnerCode) {
+          throw new ConflictException('Partner code already exists.');
+        }
+        throw new ConflictException('Partner name already exists.');
+      }
+      throw err;
+    }
   }
 
   async getPartnerDetails(dbConnection: Connection, id: string): Promise<Partner> {

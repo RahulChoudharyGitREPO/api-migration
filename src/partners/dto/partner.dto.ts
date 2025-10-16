@@ -33,6 +33,43 @@ export class CreatePartnerDto {
   schemaValues?: any;
 }
 
+export class UpdatePartnerDto {
+  @IsString()
+  @IsNotEmpty()
+  id: string;
+
+  @IsString()
+  @IsNotEmpty()
+  name: string;
+
+  @IsNumber()
+  @IsNotEmpty()
+  partnerCode: number;
+
+  @IsEmail()
+  @IsNotEmpty()
+  email: string;
+
+  @IsString()
+  @IsNotEmpty()
+  contactNumber: string;
+
+  @IsString()
+  @IsNotEmpty()
+  type: string;
+
+  @IsString()
+  @IsNotEmpty()
+  status: string;
+
+  @IsArray()
+  @IsOptional()
+  schema?: any[];
+
+  @IsOptional()
+  schemaValues?: any;
+}
+
 export class PartnerListDto {
   @IsOptional()
   page?: number;

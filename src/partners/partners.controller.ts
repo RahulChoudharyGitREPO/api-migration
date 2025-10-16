@@ -14,7 +14,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { DynamicDbGuard } from '../common/guards/dynamic-db.guard';
 import { DatabaseConnection } from '../common/decorators/dynamic-db.decorator';
 import { Connection, Types } from 'mongoose';
-import { CreatePartnerDto, PartnerListDto } from './dto/partner.dto';
+import { CreatePartnerDto, UpdatePartnerDto, PartnerListDto } from './dto/partner.dto';
 
 @Controller(':companyName/api/partner')
 @UseGuards(JwtAuthGuard, DynamicDbGuard)
@@ -41,6 +41,37 @@ export class PartnersController {
       }
 
       const result = await this.partnersService.createPartner(dbConnection, createPartnerDto);
+
+      return {
+        success: true,
+        data: result,
+      };
+    } catch (error) {
+      throw new HttpException(
+        {
+          success: false,
+          error: error.message || 'Internal Server Error',
+        },
+        error.status || HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  @Post('update')
+  async updatePartner(
+    @DatabaseConnection() dbConnection: Connection,
+    @Body() updatePartnerDto: UpdatePartnerDto,
+  ) {
+    try {
+      const { name, partnerCode, email, contactNumber, type, status, schema } = updatePartnerDto;
+
+      if (!(name && partnerCode && email && contactNumber && type && status && schema)) {
+        throw new BadRequestException(
+          'name, partnerCode, email, contactNumber, type, status, schema are required!',
+        );
+      }
+
+      const result = await this.partnersService.updatePartner(dbConnection, updatePartnerDto);
 
       return {
         success: true,

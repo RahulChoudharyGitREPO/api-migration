@@ -48,6 +48,57 @@ export class CreateProgramDto {
   kpi?: string;
 }
 
+export class UpdateProgramDto {
+  @IsString()
+  @IsNotEmpty()
+  id: string;
+
+  @IsOptional()
+  @IsString()
+  name?: string;
+
+  @IsOptional()
+  @IsNumber()
+  budget?: number;
+
+  @IsOptional()
+  @IsNumber()
+  budgetUtilisation?: number;
+
+  @IsOptional()
+  @IsString()
+  thematicAreas?: string;
+
+  @IsOptional()
+  @IsString()
+  partnerName?: string;
+
+  @IsOptional()
+  @IsString()
+  status?: string;
+
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @IsOptional()
+  startDate?: Date;
+
+  @IsOptional()
+  endDate?: Date;
+
+  @IsOptional()
+  @IsArray()
+  schema?: any[];
+
+  @IsOptional()
+  @IsObject()
+  schemaValues?: any;
+
+  @IsOptional()
+  kpi?: string;
+}
+
 export class ProgramListDto {
   @IsOptional()
   @IsNumber()

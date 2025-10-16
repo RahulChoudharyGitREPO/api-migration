@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Put,
   Body,
   Param,
   UseGuards,
@@ -13,7 +14,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { DynamicDbGuard } from '../common/guards/dynamic-db.guard';
 import { DatabaseConnection } from '../common/decorators/dynamic-db.decorator';
 import { Connection } from 'mongoose';
-import { CreateProgramDto, ProgramListDto } from './dto/program.dto';
+import { CreateProgramDto, UpdateProgramDto, ProgramListDto } from './dto/program.dto';
 
 @Controller(':companyName/api/program')
 @UseGuards(JwtAuthGuard, DynamicDbGuard)
@@ -32,6 +33,44 @@ export class ProgramsController {
   ) {
     try {
       const result = await this.programsService.createProgram(dbConnection, createProgramDto);
+
+      return {
+        success: true,
+        data: result,
+      };
+    } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+
+      if (error.status === 409) {
+        throw new HttpException(
+          {
+            success: false,
+            error: error.message,
+            field: 'name',
+          },
+          HttpStatus.CONFLICT,
+        );
+      }
+
+      throw new HttpException(
+        {
+          success: false,
+          error: error.message || 'Internal Server Error',
+        },
+        error.status || HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  @Put('update')
+  async updateProgram(
+    @DatabaseConnection() dbConnection: Connection,
+    @Body() updateProgramDto: UpdateProgramDto,
+  ) {
+    try {
+      const result = await this.programsService.updateProgram(dbConnection, updateProgramDto);
 
       return {
         success: true,
